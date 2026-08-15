@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6d56a6">
+<title>課程簽到</title>
+<style>
+  /* ── 品牌色票：換品牌或換深淺，只要改這一區，其餘樣式不用動 ──
+     取自 Sara 官網 v3 設計稿（紫 #6d56a6 / 深紫 #46356b / 金 #d3b17a）。
+     成功綠與警示紅刻意保留語意色，不換成品牌色——現場要一眼分辨成敗。
+
+     目前使用：深紫底。
+     若場地光線強、螢幕反光嚴重，改用下面這組淺色版即可（整段替換 :root 內容）：
+       --bg:#fbf7f1; --card:#fffdfa; --ink:#2b2430; --ink-soft:#59505c;
+       --brand:#6d56a6; --brand-dark:#46356b; --brand-mist:#ebe3f3; --gold:#d3b17a;
+       --success:#2f7d53; --fail:#b3382c; --line:rgba(50,34,64,.14);
+       --input-bg:#fffdfa; --notice-bg:#f7f1e6; --btn-ink:#fff;
+  */
+  :root {
+    --bg: #1e1730;
+    --card: #2b2140;
+    --ink: #f4eefb;
+    --ink-soft: #b9aecb;
+    --brand: #7c62bd;
+    --brand-dark: #6d56a6;
+    --brand-mist: #3a2f52;
+    --gold: #e0c48f;
+    --success: #5ac98a;
+    --fail: #f0857a;
+    --line: rgba(255, 255, 255, .16);
+    --input-bg: #241b36;
+    --notice-bg: #332845;
+    --btn-ink: #ffffff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.32;
+    padding: 0 0 18px;
+  }
+
+  /* 頂部色帶：頁面一出現就有東西，不會是空白 */
+  .topbar { height: 8px; background: linear-gradient(90deg, var(--brand-dark), var(--brand) 55%, var(--gold)); }
+
+  .wrap { max-width: 480px; margin: 0 auto; padding: 0 16px; }
+
+  /* 主視覺：預留固定比例，圖片後到也不會讓版面跳動 */
+  .hero {
+    margin: 12px 0 0;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--brand-mist);
+    aspect-ratio: 21 / 9; /* 橫幅比例：留住品牌感，高度約為 16:9 的一半 */
+    display: none;
+  }
+  .hero.show { display: block; }
+  .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 16px 18px 18px;
+    margin-top: 12px;
+    box-shadow: 0 16px 36px rgba(20, 10, 35, .28);
+  }
+
+  .event-name {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    margin: 0 0 1px;
+    line-height: 1.15;
+  }
+  .event-date { font-size: 17px; color: var(--ink-soft); margin: 0 0 5px; }
+  .welcome {
+    font-size: 19px;
+    color: var(--ink-soft);
+    margin: 0 0 10px;
+    padding-bottom: 9px;
+    border-bottom: 2px dashed rgba(224, 196, 143, .35);
+  }
+
+  label { display: block; font-size: 22px; font-weight: 700; margin-bottom: 2px; line-height: 1.2; }
+  .hint { font-size: 17px; color: var(--ink-soft); margin: 0 0 7px; line-height: 1.25; }
+
+  input {
+    width: 100%;
+    padding: 9px 14px;
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    text-align: center;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background: var(--input-bg);
+    color: var(--ink);
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px var(--brand-mist);
+  }
+  input::placeholder { color: var(--ink-soft); opacity: .55; }
+
+  button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 13px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--btn-ink);
+    background: var(--brand);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  button:active { background: var(--brand-dark); }
+  button:disabled { background: #a49bab; cursor: not-allowed; }
+
+  /* 結果訊息：現場站著看，字級刻意放到最大 */
+  #result { margin-top: 12px; }
+  .msg { font-size: 30px; font-weight: 800; line-height: 1.2; text-align: center; margin: 0; }
+  .msg.success { color: var(--success); }
+  .msg.fail { color: var(--fail); }
+  .msg.loading { color: var(--ink-soft); font-size: 24px; }
+
+  .detail {
+    margin-top: 10px;
+    background: var(--brand-mist);
+    border-left: 8px solid var(--gold);
+    border-radius: 10px;
+    padding: 8px 16px;
+    text-align: center; /* 姓名、人數、訂單編號置中，現場核對掃視較快 */
+  }
+  .detail .row { padding: 4px 0; }
+  .detail .row + .row { border-top: 1px solid rgba(255, 255, 255, .12); }
+  .detail .k { display: block; color: var(--ink-soft); font-size: 16px; line-height: 1.2; }
+  .detail .v {
+    display: block;
+    font-weight: 800;
+    font-size: 23px;
+    line-height: 1.15;
+    overflow-wrap: anywhere; /* 訂單編號較長時斷在框內，不撐破版面 */
+  }
+  .detail .big { font-size: 30px; }
+
+  .notice {
+    margin-top: 10px;
+    font-size: 18px;
+    color: var(--ink-soft);
+    text-align: center;
+    padding: 9px 14px;
+    background: var(--notice-bg);
+    border: 1px solid rgba(224, 196, 143, .42);
+    border-radius: 12px;
+    display: none;
+  }
+  .notice.show { display: block; }
+
+  .footer { text-align: center; font-size: 15px; color: var(--ink-soft); opacity: .7; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+
+<div class="wrap">
+  <div class="hero" id="hero"><img id="heroImg" alt=""></div>
+
+  <div class="card">
+    <h1 class="event-name" id="eventName">課程自助簽到</h1>
+    <p class="event-date" id="eventDate"></p>
+    <p class="welcome" id="welcome">歡迎抵達，請完成簽到</p>
+
+    <label for="code" id="inputLabel">請輸入手機號碼末四碼</label>
+    <p class="hint" id="inputHint" hidden></p>
+
+    <input id="code" type="tel" inputmode="numeric" autocomplete="off"
+           maxlength="10" placeholder="5678">
+    <button id="submit">送出簽到</button>
+
+    <div id="result"></div>
+  </div>
+
+  <div class="notice" id="notice"></div>
+  <p class="footer">簽到有問題請洽現場工作人員</p>
+</div>
+
+<script>
+// ===== 設定：部署後把這行換成你的 Apps Script /exec 網址 =====
+var API = 'https://script.google.com/macros/s/AKfycbwwoZnAoiftITok6hGpFkKGzaRX4WqshVEbbHL1d_DwRKrmm3LHBDayZfaDtc0aO-In/exec';
+
+var TIMEOUT_MS = 20000;
+
+var params = new URLSearchParams(location.search);
+var EVENT = params.get('e') || '';
+
+var $ = function (id) { return document.getElementById(id); };
+var codeInput = $('code');
+var submitBtn = $('submit');
+var resultBox = $('result');
+
+// ---------- 場次外觀：先用上次記住的，再背景更新 ----------
+// 表單不等這支 API，網路再差也能立刻輸入送出
+function applyEventInfo(info) {
+  if (!info) return;
+  if (info.name) { $('eventName').textContent = info.name; document.title = info.name + ' 簽到'; }
+  if (info.date) $('eventDate').textContent = info.date;
+  if (info.welcome) $('welcome').textContent = info.welcome;
+  if (info.notice) { $('notice').textContent = info.notice; $('notice').classList.add('show'); }
+  if (info.heroImage) {
+    var img = $('heroImg');
+    img.onload = function () { $('hero').classList.add('show'); };
+    img.onerror = function () { $('hero').style.display = 'none'; }; // 圖載不出來就當沒有，不影響簽到
+    img.src = info.heroImage;
+  }
+}
+
+try {
+  var cached = localStorage.getItem('evinfo_' + EVENT);
+  if (cached) applyEventInfo(JSON.parse(cached));
+} catch (e) {}
+
+function fetchWithTimeout(url, options, ms) {
+  var ctrl = new AbortController();
+  var timer = setTimeout(function () { ctrl.abort(); }, ms);
+  options = options || {};
+  options.signal = ctrl.signal;
+  return fetch(url, options).then(function (r) {
+    clearTimeout(timer);
+    return r;
+  }, function (err) {
+    clearTimeout(timer);
+    throw err;
+  });
+}
+
+// 示範模式：網址加 ?demo=1 就用假資料跑，不連後端
+var DEMO = params.get('demo') === '1';
+if (DEMO && !EVENT) EVENT = 'demo-01'; // 示範模式不必帶場次代碼
+
+function demoApi(payload) {
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 450">'
+    + '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+    + '<stop offset="0" stop-color="%2346356b"/><stop offset=".6" stop-color="%236d56a6"/><stop offset="1" stop-color="%23d3b17a"/>'
+    + '</linearGradient></defs><rect width="1050" height="450" fill="url(%23g)"/>'
+    + '<text x="525" y="245" font-size="56" font-weight="bold" fill="%23fffdfa" text-anchor="middle" font-family="sans-serif">主視覺示意</text></svg>';
+  return new Promise(function (resolve) {
+    setTimeout(function () {
+      if (payload.action === 'eventInfo') {
+        resolve({ status: 'success', name: '示範場次 · 新手實戰班', date: '2026/09/01（六）台北場',
+                  welcome: '歡迎抵達，感謝你今天空出時間前來',
+                  notice: '入場後請將手機調整為靜音，謝謝配合',
+                  heroImage: 'data:image/svg+xml;utf8,' + svg });
+      } else {
+        resolve({ status: 'success', message: '✅ 簽到成功', name: '王小美',
+                  orderId: 'CM-20260901-0873', headcount: '3' });
+      }
+    }, 300);
+  });
+}
+
+function callApi(payload, ms) {
+  if (DEMO) return demoApi(payload);
+  if (API.indexOf('PASTE_YOUR') === 0) {
+    return Promise.resolve({ status: 'error', message: '尚未設定後端網址<br>請洽工作人員' });
+  }
+  return fetchWithTimeout(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 用 text/plain 避開 CORS 預檢
+    body: JSON.stringify(payload)
+  }, ms).then(function (r) { return r.json(); });
+}
+
+if (EVENT) {
+  callApi({ action: 'eventInfo', event: EVENT }, 15000)
+    .then(function (info) {
+      if (info && info.status === 'success') {
+        applyEventInfo(info);
+        try { localStorage.setItem('evinfo_' + EVENT, JSON.stringify(info)); } catch (e) {}
+      }
+    })
+    .catch(function () { /* 拿不到就用預設外觀，不打擾學員 */ });
+}
+
+// ---------- 簽到 ----------
+function setBusy(busy) {
+  submitBtn.disabled = busy;
+  submitBtn.textContent = busy ? '核對中…' : '送出簽到';
+}
+
+function show(html) { resultBox.innerHTML = html; }
+
+// 把輸入提示還原成預設（末四碼）狀態
+function resetPrompt() {
+  $('inputLabel').textContent = '請輸入手機號碼末四碼';
+  $('inputHint').hidden = true;
+  $('inputHint').textContent = '';
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function submitCheckIn() {
+  var code = codeInput.value.trim();
+
+  if (!EVENT) {
+    show('<p class="msg fail">簽到連結有誤<br>請洽現場工作人員</p>');
+    return;
+  }
+  if (!code) {
+    show('<p class="msg fail">請輸入手機號碼</p>');
+    codeInput.focus();
+    return;
+  }
+
+  setBusy(true);
+  show('<p class="msg loading">資料核對中…</p>');
+
+  callApi({ action: 'checkin', event: EVENT, code: code }, TIMEOUT_MS)
+    .then(function (res) {
+      setBusy(false);
+
+      if (res.status === 'success') {
+        var rows = '';
+        if (res.name)      rows += '<div class="row"><span class="k">學員姓名</span><span class="v big">' + escapeHtml(res.name) + '</span></div>';
+        if (res.headcount) rows += '<div class="row"><span class="k">報名人數</span><span class="v big">' + escapeHtml(res.headcount) + ' 位</span></div>';
+        if (res.orderId)   rows += '<div class="row"><span class="k">訂單編號</span><span class="v">' + escapeHtml(res.orderId) + '</span></div>';
+        show('<p class="msg success">' + escapeHtml(res.message) + '</p><div class="detail">' + rows + '</div>');
+        codeInput.value = '';
+        codeInput.placeholder = '5678';
+        codeInput.blur();
+        resetPrompt(); // 上一位若觸發過撞號，這裡把提示還原給下一位
+        // 捲到結果，避免結果落在螢幕外讓人以為沒反應
+        resultBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      } else if (res.status === 'collision') {
+        // 末四碼撞號：切換成要求輸入完整號碼
+        show('<p class="msg fail">' + escapeHtml(res.message) + '</p>');
+        $('inputLabel').textContent = '請輸入完整 10 碼手機號碼';
+        $('inputHint').textContent = '有多筆末四碼相同，需要完整號碼才能確認身分';
+        $('inputHint').hidden = false;
+        codeInput.value = '';
+        codeInput.placeholder = '0912345678';
+        codeInput.focus();
+
+      } else {
+        show('<p class="msg fail">' + escapeHtml(res.message) + '</p>');
+      }
+    })
+    .catch(function (err) {
+      setBusy(false);
+      var isTimeout = err && err.name === 'AbortError';
+      show('<p class="msg fail">' + (isTimeout ? '網路較慢，尚未收到回應<br>請再按一次送出' : '連線失敗<br>請再按一次送出') + '</p>');
+    });
+}
+
+submitBtn.addEventListener('click', submitCheckIn);
+codeInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') submitCheckIn();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e1730">
+<title>簽到控制台</title>
+<style>
+  /* 色票與簽到頁一致，換品牌改這一區 */
+  :root {
+    --bg: #1e1730;
+    --card: #2b2140;
+    --card-2: #332845;
+    --ink: #f4eefb;
+    --ink-soft: #b9aecb;
+    --brand: #7c62bd;
+    --brand-dark: #6d56a6;
+    --brand-mist: #3a2f52;
+    --gold: #e0c48f;
+    --success: #5ac98a;
+    --fail: #f0857a;
+    --line: rgba(255, 255, 255, .16);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.35;
+    font-size: 16px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 12px 14px 40px; }
+  .hidden { display: none !important; }
+
+  /* ── 登入 ── */
+  .login { max-width: 380px; margin: 60px auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  .login h1 { font-size: 22px; margin: 0 0 4px; }
+  .login p { color: var(--ink-soft); font-size: 15px; margin: 0 0 18px; }
+
+  label { display: block; font-size: 14px; color: var(--ink-soft); margin: 12px 0 4px; }
+  input, select, textarea {
+    width: 100%; padding: 11px 12px; font-size: 17px;
+    border: 1px solid var(--line); border-radius: 9px;
+    background: #241b36; color: var(--ink); font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); }
+
+  button {
+    font-family: inherit; font-size: 16px; font-weight: 700;
+    border: none; border-radius: 9px; padding: 11px 16px;
+    background: var(--brand); color: #fff; cursor: pointer;
+  }
+  button:active { background: var(--brand-dark); }
+  button:disabled { background: #5b5470; cursor: not-allowed; }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); font-weight: 600; }
+  button.danger { background: transparent; border: 1px solid rgba(240,133,122,.5); color: var(--fail); }
+  button.block { width: 100%; padding: 14px; font-size: 18px; }
+
+  /* ── 頂列 ── */
+  .topline { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .topline select { flex: 1; font-size: 16px; padding: 9px 10px; }
+  .topline button { padding: 9px 12px; font-size: 15px; }
+
+  /* ── 看板：手機第一眼就要看到 ── */
+  .board { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .stat .k { font-size: 14px; color: var(--ink-soft); }
+  .stat .v { font-size: 34px; font-weight: 800; line-height: 1.1; margin-top: 2px; }
+  .stat.hero { grid-column: 1 / -1; background: linear-gradient(135deg, var(--brand-dark), var(--brand)); border: none; }
+  .stat.hero .k { color: #e9e0f7; font-size: 15px; }
+  .stat.hero .v { font-size: 52px; color: #fff; }
+  .stat.hero .sub { font-size: 16px; color: #e9e0f7; margin-top: 2px; }
+  .stat .v.ok { color: var(--success); }
+  .stat .v.wait { color: var(--gold); }
+  .updated { text-align: right; font-size: 13px; color: var(--ink-soft); opacity: .75; margin: -4px 0 10px; }
+
+  /* ── 工具列 ── */
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .tools input { flex: 1 1 160px; font-size: 16px; padding: 10px 12px; }
+  .segmented { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .segmented button { background: transparent; color: var(--ink-soft); border-radius: 0; padding: 10px 12px; font-size: 15px; font-weight: 600; }
+  .segmented button.on { background: var(--brand); color: #fff; }
+
+  /* ── 名單 ── */
+  .row {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; margin-bottom: 8px;
+    display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+  }
+  .row.done { border-left: 5px solid var(--success); }
+  .row.todo { border-left: 5px solid var(--gold); }
+  .row .name { font-size: 19px; font-weight: 800; }
+  .row .meta { font-size: 14px; color: var(--ink-soft); }
+  .row .spacer { flex: 1 1 auto; }
+  .row .acts { display: flex; gap: 6px; }
+  .row .acts button { padding: 8px 12px; font-size: 14px; }
+  .tag { font-size: 13px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--line); color: var(--ink-soft); }
+  .tag.ok { color: var(--success); border-color: rgba(90,201,138,.45); }
+  .tag.warn { color: var(--gold); border-color: rgba(224,196,143,.45); }
+  .tag.bad { color: var(--fail); border-color: rgba(240,133,122,.45); }
+  .note { flex-basis: 100%; font-size: 14px; color: var(--gold); }
+
+  .empty { text-align: center; color: var(--ink-soft); padding: 30px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    background: var(--card-2); border: 1px solid var(--line); color: var(--ink);
+    padding: 12px 18px; border-radius: 10px; font-size: 16px; font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); z-index: 50; max-width: 90vw;
+  }
+  .toast.ok { border-color: rgba(90,201,138,.5); }
+  .toast.bad { border-color: rgba(240,133,122,.5); }
+
+  /* ── 對話框 ── */
+  .mask { position: fixed; inset: 0; background: rgba(10,6,20,.72); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 40; }
+  .modal { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; }
+  .modal h3 { margin: 0 0 4px; font-size: 20px; }
+  .modal .sub { color: var(--ink-soft); font-size: 14px; margin-bottom: 8px; }
+  .modal .btns { display: flex; gap: 8px; margin-top: 16px; }
+  .modal .btns button { flex: 1; padding: 12px; }
+
+  /* 桌面：報到率獨佔左欄並跨兩列，其餘四格排成右側 2×2 */
+  @media (min-width: 720px) {
+    .board { grid-template-columns: 1.5fr 1fr 1fr; }
+    .stat.hero {
+      grid-column: 1;
+      grid-row: 1 / 3;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 20px 24px;
+    }
+    .stat.hero .k { font-size: 17px; }
+    .stat.hero .v { font-size: 82px; }
+    .stat.hero .sub { font-size: 18px; margin-top: 6px; }
+    .stat { padding: 14px 16px; }
+    .stat .v { font-size: 38px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 登入 ── -->
+<div class="login" id="loginBox">
+  <h1>簽到控制台</h1>
+  <p>需要密碼才能查看名單</p>
+  <label for="pw">控制台密碼</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <label for="op">你是誰（會記在操作紀錄裡）</label>
+  <input id="op" type="text" placeholder="例如：小林">
+  <button class="block" id="loginBtn" style="margin-top:18px">進入</button>
+  <p id="loginMsg" style="margin-top:12px;color:var(--fail)"></p>
+</div>
+
+<!-- ── 主畫面 ── -->
+<div class="wrap hidden" id="main">
+  <div class="topline">
+    <select id="eventSel"></select>
+    <button class="ghost" id="refreshBtn">重新整理</button>
+    <button class="ghost" id="logoutBtn">登出</button>
+  </div>
+
+  <div class="board" id="board"></div>
+  <div class="updated" id="updated"></div>
+
+  <div class="tools">
+    <input id="search" type="search" placeholder="搜尋姓名、電話或訂單編號">
+    <div class="segmented">
+      <button data-filter="all" class="on">全部</button>
+      <button data-filter="unchecked">未報到</button>
+      <button data-filter="checked">已報到</button>
+    </div>
+    <button id="walkInBtn">＋ 現場新增</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<script>
+// ===== 設定：換成你的 Apps Script /exec 網址（與簽到頁同一個） =====
+var API = 'https://script.google.com/macros/s/AKfycbwwoZnAoiftITok6hGpFkKGzaRX4WqshVEbbHL1d_DwRKrmm3LHBDayZfaDtc0aO-In/exec';
+
+var POLL_MS = 15000; // 看板自動更新間隔
+
+var state = { pass: '', operator: '', event: '', filter: 'all', keyword: '', rows: [], timer: null };
+var $ = function (id) { return document.getElementById(id); };
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+// 示範模式：網址加 ?demo=1 就用假資料跑，不連後端，方便隨時看版面
+var DEMO = new URLSearchParams(location.search).get('demo') === '1';
+
+function demoApi(payload) {
+  var data = {
+    login: { status: 'success', events: [{ code: 'demo-01', name: '示範場次 · 新手實戰班', date: '2026/09/01' }] },
+    dashboard: { status: 'success', stats: { registered: 274, expected: 312, checkedIn: 251, arrived: 286, notArrived: 23, walkIn: 4, rate: 91.6 } },
+    roster: { status: 'success', rows: [
+      { phone:'912345678', name:'王小美', orderId:'CM-20260901-0873', headcount:'3', payStatus:'交易成功', checkedIn:true, checkInTime:'2026/09/01 13:42:07', method:'自助', note:'' },
+      { phone:'987654321', name:'陳大文', orderId:'CM-20260901-0912', headcount:'1', payStatus:'交易成功', checkedIn:false, checkInTime:'', method:'', note:'' },
+      { phone:'933221100', name:'林靜宜', orderId:'CM-20260901-1004', headcount:'2', payStatus:'待付款', checkedIn:false, checkInTime:'', method:'', note:'' },
+      { phone:'955443322', name:'黃俊傑', orderId:'', headcount:'1', payStatus:'', checkedIn:true, checkInTime:'2026/09/01 13:55:20', method:'現場新增', note:'現場補費 3000（小林 13:55）' },
+      { phone:'966778899', name:'吳品瑄', orderId:'CM-20260901-1188', headcount:'1', payStatus:'交易成功', checkedIn:true, checkInTime:'2026/09/01 13:48:11', method:'代為簽到', note:'手機沒電（小林 13:48）' }
+    ]}
+  };
+  return new Promise(function (resolve) {
+    setTimeout(function () {
+      resolve(data[payload.action] || { status: 'success', message: '（示範模式，未實際寫入）' });
+    }, 300);
+  });
+}
+
+function api(payload) {
+  if (DEMO) return demoApi(payload);
+  if (API.indexOf('PASTE_YOUR') === 0) {
+    return Promise.resolve({ status: 'error', message: '尚未設定後端網址，請先修改 console.html 最上方的 API 變數' });
+  }
+  payload.pass = state.pass;
+  return fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  }).then(function (r) { return r.json(); });
+}
+
+function toast(msg, kind) {
+  var el = document.createElement('div');
+  el.className = 'toast ' + (kind || '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function () { el.remove(); }, 2600);
+}
+
+// ---------- 登入 ----------
+function doLogin() {
+  var pw = $('pw').value.trim();
+  var op = $('op').value.trim();
+  if (!pw) { $('loginMsg').textContent = '請輸入密碼'; return; }
+  if (!op) { $('loginMsg').textContent = '請填寫你的名字'; return; }
+
+  state.pass = pw;
+  state.operator = op;
+  $('loginBtn').disabled = true;
+  $('loginMsg').textContent = '';
+
+  api({ action: 'login' })
+    .then(function (res) {
+      $('loginBtn').disabled = false;
+      if (res.status !== 'success') {
+        $('loginMsg').textContent = res.message || '登入失敗';
+        return;
+      }
+      try {
+        localStorage.setItem('console_pass', pw);
+        localStorage.setItem('console_op', op);
+      } catch (e) {}
+      enterMain(res.events || []);
+    })
+    .catch(function () {
+      $('loginBtn').disabled = false;
+      $('loginMsg').textContent = '連線失敗，請確認網路';
+    });
+}
+
+function enterMain(events) {
+  $('loginBox').classList.add('hidden');
+  $('main').classList.remove('hidden');
+
+  var sel = $('eventSel');
+  sel.innerHTML = events.map(function (ev) {
+    return '<option value="' + esc(ev.code) + '">' + esc(ev.name || ev.code) + (ev.date ? '（' + esc(ev.date) + '）' : '') + '</option>';
+  }).join('');
+
+  if (events.length === 0) {
+    $('board').innerHTML = '<div class="empty">場次登錄表裡沒有啟用中的場次</div>';
+    return;
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem('console_event'); } catch (e) {}
+  if (saved && events.some(function (ev) { return ev.code === saved; })) sel.value = saved;
+
+  state.event = sel.value;
+  loadAll();
+  startPolling();
+}
+
+// ---------- 載入 ----------
+function loadBoard() {
+  return api({ action: 'dashboard', event: state.event }).then(function (res) {
+    if (res.status !== 'success') { $('board').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
+    var s = res.stats;
+    $('board').innerHTML =
+      '<div class="stat hero"><div class="k">報到率</div><div class="v">' + s.rate + '%</div>' +
+        '<div class="sub">' + s.checkedIn + ' / ' + s.registered + ' 筆已報到</div></div>' +
+      '<div class="stat"><div class="k">已到人數（含同行）</div><div class="v ok">' + s.arrived + '</div></div>' +
+      '<div class="stat"><div class="k">未報到</div><div class="v wait">' + s.notArrived + '</div></div>' +
+      '<div class="stat"><div class="k">應到人數</div><div class="v">' + s.expected + '</div></div>' +
+      '<div class="stat"><div class="k">現場新增</div><div class="v">' + s.walkIn + '</div></div>';
+    var t = new Date();
+    $('updated').textContent = '更新於 ' + t.toTimeString().slice(0, 8);
+  });
+}
+
+function loadList() {
+  return api({ action: 'roster', event: state.event, filter: state.filter, keyword: state.keyword })
+    .then(function (res) {
+      if (res.status !== 'success') { $('list').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
+      state.rows = res.rows || [];
+      renderList();
+    });
+}
+
+function loadAll() {
+  return Promise.all([loadBoard(), loadList()]).catch(function () {
+    toast('連線失敗，請按重新整理', 'bad');
+  });
+}
+
+// 與後端 PAID_KEYWORDS 一致：狀態含任一關鍵字即視為已付款
+var PAID_WORDS = ['成功', '已完成', '完成', '已付款'];
+function isPaid(status) {
+  return PAID_WORDS.some(function (w) { return String(status).indexOf(w) !== -1; });
+}
+
+function renderList() {
+  if (state.rows.length === 0) {
+    $('list').innerHTML = '<div class="empty">沒有符合的資料</div>';
+    return;
+  }
+  $('list').innerHTML = state.rows.map(function (r) {
+    var tags = '';
+    if (r.checkedIn) {
+      tags += '<span class="tag ok">已報到 ' + esc(r.checkInTime.slice(-8)) + '</span>';
+      if (r.method && r.method !== '自助') tags += '<span class="tag">' + esc(r.method) + '</span>';
+    } else {
+      tags += '<span class="tag warn">未報到</span>';
+    }
+    // 只標出「不是已付款」的狀態，正常的不顯示，避免現場畫面全是標籤雜訊
+    if (r.payStatus && !isPaid(r.payStatus)) {
+      tags += '<span class="tag bad">' + esc(r.payStatus) + '</span>';
+    }
+
+    var acts = r.checkedIn
+      ? '<button class="danger" data-act="cancel" data-phone="' + esc(r.phone) + '">取消</button>'
+      : '<button data-act="checkin" data-phone="' + esc(r.phone) + '">代為簽到</button>';
+    acts += '<button class="ghost" data-act="note" data-phone="' + esc(r.phone) + '">備註</button>';
+
+    return '<div class="row ' + (r.checkedIn ? 'done' : 'todo') + '">' +
+      '<div><div class="name">' + esc(r.name) + '</div>' +
+      '<div class="meta">' + esc(r.headcount || 1) + ' 位 ｜ ' + esc(r.orderId || '無訂單編號') + '</div></div>' +
+      '<div class="spacer"></div>' + tags +
+      '<div class="acts">' + acts + '</div>' +
+      (r.note ? '<div class="note">備註：' + esc(r.note) + '</div>' : '') +
+      '</div>';
+  }).join('');
+}
+
+function startPolling() {
+  if (state.timer) clearInterval(state.timer);
+  state.timer = setInterval(function () {
+    if (!document.hidden) loadBoard();
+  }, POLL_MS);
+}
+
+// ---------- 對話框 ----------
+function modal(opts) {
+  var mask = document.createElement('div');
+  mask.className = 'mask';
+  mask.innerHTML = '<div class="modal"><h3>' + esc(opts.title) + '</h3>' +
+    (opts.sub ? '<div class="sub">' + esc(opts.sub) + '</div>' : '') +
+    opts.body +
+    '<div class="btns"><button class="ghost" data-x="cancel">取消</button>' +
+    '<button data-x="ok">' + esc(opts.okText || '確定') + '</button></div></div>';
+  document.body.appendChild(mask);
+
+  mask.addEventListener('click', function (e) {
+    if (e.target === mask || e.target.dataset.x === 'cancel') { mask.remove(); return; }
+    if (e.target.dataset.x === 'ok') {
+      var vals = {};
+      mask.querySelectorAll('[data-f]').forEach(function (el) { vals[el.dataset.f] = el.value.trim(); });
+      opts.onOk(vals, function () { mask.remove(); });
+    }
+  });
+  var first = mask.querySelector('[data-f]');
+  if (first) first.focus();
+}
+
+function act(action, payload, okMsg) {
+  var body = Object.assign({ action: action, event: state.event, operator: state.operator }, payload);
+  api(body).then(function (res) {
+    if (res.status === 'success') {
+      toast(res.message || okMsg, 'ok');
+      loadAll();
+    } else {
+      toast(res.message || '操作失敗', 'bad');
+    }
+  }).catch(function () { toast('連線失敗', 'bad'); });
+}
+
+// ---------- 事件 ----------
+$('loginBtn').addEventListener('click', doLogin);
+$('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('op').focus(); });
+$('op').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+
+$('eventSel').addEventListener('change', function () {
+  state.event = this.value;
+  try { localStorage.setItem('console_event', state.event); } catch (e) {}
+  loadAll();
+});
+
+$('refreshBtn').addEventListener('click', loadAll);
+
+$('logoutBtn').addEventListener('click', function () {
+  try { localStorage.removeItem('console_pass'); } catch (e) {}
+  location.reload();
+});
+
+$('search').addEventListener('input', function () {
+  clearTimeout(state.searchTimer);
+  var v = this.value;
+  state.searchTimer = setTimeout(function () { state.keyword = v; loadList(); }, 350);
+});
+
+document.querySelector('.segmented').addEventListener('click', function (e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  this.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
+  btn.classList.add('on');
+  state.filter = btn.dataset.filter;
+  loadList();
+});
+
+$('list').addEventListener('click', function (e) {
+  var btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  var phone = btn.dataset.phone;
+  var person = state.rows.filter(function (r) { return r.phone === phone; })[0] || {};
+
+  if (btn.dataset.act === 'checkin') {
+    modal({
+      title: '代為簽到', sub: person.name + '（' + (person.headcount || 1) + ' 位）',
+      body: '<label>原因或備註（可留空）</label><input data-f="note" placeholder="例如：手機沒電">',
+      okText: '確認簽到',
+      onOk: function (v, close) { close(); act('manualCheckIn', { phone: phone, note: v.note }, '已簽到'); }
+    });
+
+  } else if (btn.dataset.act === 'cancel') {
+    modal({
+      title: '取消簽到', sub: person.name + ' — 原始紀錄會保留並標記作廢',
+      body: '<label>取消原因</label><input data-f="note" placeholder="例如：簽錯人">',
+      okText: '確認取消',
+      onOk: function (v, close) { close(); act('cancelCheckIn', { phone: phone, note: v.note }, '已取消'); }
+    });
+
+  } else if (btn.dataset.act === 'note') {
+    modal({
+      title: '加註記', sub: person.name,
+      body: '<label>備註內容</label><input data-f="note" value="">',
+      okText: '儲存',
+      onOk: function (v, close) { close(); act('setNote', { phone: phone, note: v.note }, '備註已更新'); }
+    });
+  }
+});
+
+$('walkInBtn').addEventListener('click', function () {
+  modal({
+    title: '現場新增', sub: '名單外的人。資料寫進簽到紀錄，不會動到名單。',
+    body: '<label>姓名（必填）</label><input data-f="name">' +
+          '<label>手機號碼</label><input data-f="phone" inputmode="numeric">' +
+          '<label>人數</label><input data-f="headcount" inputmode="numeric" value="1">' +
+          '<label>備註</label><input data-f="note" placeholder="例如：現場補費 3000">',
+    okText: '新增並簽到',
+    onOk: function (v, close) {
+      if (!v.name) { toast('請填寫姓名', 'bad'); return; }
+      close();
+      act('addWalkIn', v, '已新增');
+    }
+  });
+});
+
+// 示範模式直接進主畫面，跳過登入
+if (DEMO) {
+  state.pass = 'demo';
+  state.operator = '示範';
+  document.title = '簽到控制台（示範）';
+  demoApi({ action: 'login' }).then(function (res) { enterMain(res.events); });
+}
+
+// 記住上次的密碼與操作者，現場重整頁面不用重打
+try {
+  if (DEMO) throw new Error('skip');
+  var savedPass = localStorage.getItem('console_pass');
+  var savedOp = localStorage.getItem('console_op');
+  if (savedOp) $('op').value = savedOp;
+  if (savedPass) { $('pw').value = savedPass; doLogin(); }
+} catch (e) {}
+</script>
+</body>
+</html>
