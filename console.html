@@ -81,6 +81,8 @@
   .segmented { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
   .segmented button { background: transparent; color: var(--ink-soft); border-radius: 0; padding: 10px 12px; font-size: 15px; font-weight: 600; }
   .segmented button.on { background: var(--brand); color: #fff; }
+  .segmented button.warn { color: var(--fail); }
+  .segmented button.warn.on { background: var(--fail); color: #2b1420; }
 
   /* ── 名單 ── */
   .row {
@@ -169,6 +171,7 @@
       <button data-filter="all" class="on">全部</button>
       <button data-filter="unchecked">未報到</button>
       <button data-filter="checked">已報到</button>
+      <button data-filter="abnormal" class="warn" id="abnormalBtn">異常單</button>
     </div>
     <button id="walkInBtn">＋ 現場新增</button>
   </div>
@@ -194,17 +197,35 @@ function esc(s) {
 // 示範模式：網址加 ?demo=1 就用假資料跑，不連後端，方便隨時看版面
 var DEMO = new URLSearchParams(location.search).get('demo') === '1';
 
+var DEMO_ROWS = [
+  { phone:'912345678', name:'王小美', orderId:'CM-20260901-0873', headcount:'3', payStatus:'交易成功', checkedIn:true, checkInTime:'2026/09/01 13:42:07', method:'自助', note:'' },
+  { phone:'987654321', name:'陳大文', orderId:'CM-20260901-0912', headcount:'1', payStatus:'交易成功', checkedIn:false, checkInTime:'', method:'', note:'' },
+  { phone:'955443322', name:'黃俊傑', orderId:'', headcount:'1', payStatus:'', checkedIn:true, checkInTime:'2026/09/01 13:55:20', method:'現場新增', note:'現場補費 3000（小林 13:55）' },
+  { phone:'966778899', name:'吳品瑄', orderId:'CM-20260901-1188', headcount:'1', payStatus:'交易成功', checkedIn:true, checkInTime:'2026/09/01 13:48:11', method:'代為簽到', note:'手機沒電（小林 13:48）' },
+  { phone:'933221100', name:'林靜宜', orderId:'CM-20260901-1004', headcount:'2', payStatus:'退款', checkedIn:false, checkInTime:'', method:'', note:'' },
+  { phone:'922113344', name:'王雅文', orderId:'CM-20260901-1240', headcount:'1', payStatus:'失敗', checkedIn:true, checkInTime:'2026/09/01 10:59:39', method:'代為簽到', note:'現場補款（小林 10:59）' }
+];
+
 function demoApi(payload) {
+  if (payload.action === 'roster') {
+    var isAb = function (r) { return r.payStatus && !isPaid(r.payStatus); };
+    var rows;
+    if (payload.filter === 'abnormal') {
+      rows = DEMO_ROWS.filter(isAb);
+    } else {
+      rows = DEMO_ROWS.filter(function (r) { return !isAb(r); });
+      if (payload.filter === 'checked')   rows = rows.filter(function (r) { return r.checkedIn; });
+      if (payload.filter === 'unchecked') rows = rows.filter(function (r) { return !r.checkedIn; });
+    }
+    return new Promise(function (res) { setTimeout(function () { res({ status: 'success', rows: rows }); }, 200); });
+  }
+
   var data = {
     login: { status: 'success', events: [{ code: 'demo-01', name: '示範場次 · 新手實戰班', date: '2026/09/01' }] },
-    dashboard: { status: 'success', stats: { registered: 274, expected: 312, checkedIn: 251, arrived: 286, notArrived: 23, walkIn: 4, rate: 91.6 } },
-    roster: { status: 'success', rows: [
-      { phone:'912345678', name:'王小美', orderId:'CM-20260901-0873', headcount:'3', payStatus:'交易成功', checkedIn:true, checkInTime:'2026/09/01 13:42:07', method:'自助', note:'' },
-      { phone:'987654321', name:'陳大文', orderId:'CM-20260901-0912', headcount:'1', payStatus:'交易成功', checkedIn:false, checkInTime:'', method:'', note:'' },
-      { phone:'933221100', name:'林靜宜', orderId:'CM-20260901-1004', headcount:'2', payStatus:'待付款', checkedIn:false, checkInTime:'', method:'', note:'' },
-      { phone:'955443322', name:'黃俊傑', orderId:'', headcount:'1', payStatus:'', checkedIn:true, checkInTime:'2026/09/01 13:55:20', method:'現場新增', note:'現場補費 3000（小林 13:55）' },
-      { phone:'966778899', name:'吳品瑄', orderId:'CM-20260901-1188', headcount:'1', payStatus:'交易成功', checkedIn:true, checkInTime:'2026/09/01 13:48:11', method:'代為簽到', note:'手機沒電（小林 13:48）' }
-    ]}
+    dashboard: { status: 'success', stats: {
+      registered: 270, expected: 308, checkedIn: 249, arrived: 286,
+      notArrived: 21, walkIn: 4, abnormal: 4, abnormalCheckedIn: 1, rate: 92.2
+    }}
   };
   return new Promise(function (resolve) {
     setTimeout(function () {
@@ -294,12 +315,19 @@ function loadBoard() {
     if (res.status !== 'success') { $('board').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
     var s = res.stats;
     $('board').innerHTML =
-      '<div class="stat hero"><div class="k">報到率</div><div class="v">' + s.rate + '%</div>' +
-        '<div class="sub">' + s.checkedIn + ' / ' + s.registered + ' 筆已報到</div></div>' +
-      '<div class="stat"><div class="k">已到人數（含同行）</div><div class="v ok">' + s.arrived + '</div></div>' +
+      '<div class="stat hero"><div class="k">報到率（僅計成功單）</div><div class="v">' + s.rate + '%</div>' +
+        '<div class="sub">' + s.checkedIn + ' / ' + s.registered + ' 筆成功單已報到</div></div>' +
+      '<div class="stat"><div class="k">實際到場（含同行）</div><div class="v ok">' + s.arrived + '</div></div>' +
       '<div class="stat"><div class="k">未報到</div><div class="v wait">' + s.notArrived + '</div></div>' +
       '<div class="stat"><div class="k">應到人數</div><div class="v">' + s.expected + '</div></div>' +
       '<div class="stat"><div class="k">現場新增</div><div class="v">' + s.walkIn + '</div></div>';
+
+    // 異常單數量標在按鈕上，不佔看板版面
+    var ab = $('abnormalBtn');
+    if (ab) {
+      ab.textContent = s.abnormal > 0 ? '異常單 ' + s.abnormal : '異常單';
+      ab.style.display = s.abnormal > 0 ? '' : 'none';
+    }
     var t = new Date();
     $('updated').textContent = '更新於 ' + t.toTimeString().slice(0, 8);
   });
