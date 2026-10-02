@@ -99,7 +99,7 @@ async function mutate(payload) {
   try {
     const res=await api(payload); clearPending(payload.requestId); renderActive(res); $('retryPending').classList.add('hidden');
     message(payload.action==='adminRaffleCreate'?'抽獎名單已固定保存，可以開始設定獎項。':'得獎結果已保存。重整頁面仍能查看同一結果。');
-    if(animate) {try{await window.RaffleMotion?.reveal(res.draws.find(d=>d.requestId===payload.requestId));}catch(_){window.RaffleMotion?.abort();}}
+    if(animate) {try{await window.RaffleMotion?.reveal({...res.draws.find(d=>d.requestId===payload.requestId),animation:res.animation});}catch(_){window.RaffleMotion?.abort();}}
     try { await loadSaved(); } catch(_) { /* 已成功保存，活動列表稍後可重新載入。 */ }
   } catch(err) {
     window.RaffleMotion?.abort();
@@ -159,7 +159,8 @@ $('previewAnimation').addEventListener('click',async()=>{
   try {
     const count=Math.min(3,Math.max(1,Math.floor(Number($('quantity').value)||1))),prize=$('prize').value.trim() || '示範獎項';
     window.RaffleMotion.start({eventName:'動畫預覽｜虛構得獎資料',prize,count,demo:true});
-    await window.RaffleMotion.reveal({prize,winners:Array.from({length:count},(_,i)=>({name:['示＊甲','示＊乙','示＊丙'][i],phoneTail:'00'+(i+1)}))});
+    const candidates=demoCandidates(),winners=candidates.slice(0,count),requestId='preview';
+    await window.RaffleMotion.reveal({prize,requestId,winners,animation:{requestId,candidates,winners}});
   } catch(_){window.RaffleMotion.abort();message('動畫播放失敗，抽獎名單與結果未變動。',true);}
   finally {busy(false);}
 });
@@ -167,6 +168,7 @@ function project(on){document.body.classList.toggle('projecting',on);$('exitProj
 $('projection').addEventListener('click',()=>project(true)); $('exitProjection').addEventListener('click',()=>project(false)); document.addEventListener('keydown',e=>{if(e.key==='Escape') project(false);});
 $('logout').addEventListener('click',()=>{sessionStorage.removeItem('raffle_pass');localStorage.removeItem('admin_pass');state.pass='';location.reload();});
 
+function demoCandidates() {return ['王＊美','林＊文','陳＊安','李＊婷','黃＊傑','吳＊雯','許＊安','張＊文'].map((name,i)=>({key:'demo'+i,name,phoneTail:String(101+i)}));}
 // 示範使用虛構資料，不呼叫正式 API，也不寫入試算表。
 async function demoApi(p) {
   await new Promise(r=>setTimeout(r,180));
@@ -188,7 +190,8 @@ async function demoApi(p) {
       const names=['王＊美','林＊文','陳＊安','李＊婷','黃＊傑','吳＊雯','許＊安','張＊文'];const start=8-d.remaining;
       d.draws.push({requestId:p.requestId,prize:p.prize,count:p.count,time:new Date().toLocaleString('zh-TW'),winners:Array.from({length:p.count},(_,i)=>({name:names[start+i],phoneTail:String(101+start+i)}))});d.revision++;d.remaining-=p.count;store('raffle_demo_data',demo);
     }
-    return good(d);
+    const index=d.draws.findIndex(x=>x.requestId===p.requestId),before=d.draws.slice(0,index).reduce((n,x)=>n+x.count,0),candidates=demoCandidates().slice(before);
+    return good({...d,animation:{requestId:p.requestId,candidates,winners:candidates.slice(0,d.draws[index].count)}});
   }
   if(p.action==='adminRaffleExport') return good({name:d.name,rows:[['獎項','姓名（示範）','手機末三碼','抽出時間'],...d.draws.flatMap(x=>x.winners.map(w=>[x.prize,w.name,w.phoneTail,x.time]))]});
   throw new Error('示範模式不支援此操作');
