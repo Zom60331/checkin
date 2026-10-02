@@ -1,12 +1,13 @@
 /* 視覺揭曉與抽樣分離：此檔不讀候選名單、不發 API、不決定得獎者。 */
 (() => {
   let overlay=null, started=0, animation=0, previousFocus=null, previousOverflow='', mainWasInert=false;
+  const reelAnimations=new Set();
   const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   function element(tag,cls,text) { const el=document.createElement(tag); el.className=cls; if(text!==undefined) el.textContent=text; return el; }
   function close() {
     if(!overlay) return;
-    cancelAnimationFrame(animation); overlay.remove(); overlay=null;
+    cancelAnimationFrame(animation); reelAnimations.forEach(a=>a.cancel()); reelAnimations.clear(); overlay.remove(); overlay=null;
     document.body.style.overflow=previousOverflow;
     const main=document.getElementById('main'); if(main) main.inert=mainWasInert;
     if(previousFocus?.isConnected && !previousFocus.disabled) previousFocus.focus({preventScroll:true});
@@ -47,6 +48,52 @@
     }
     animation=requestAnimationFrame(frame);
   }
+  async function spinReels(target, draw) {
+    target.classList.add('spinning');
+    const suspense=target.querySelector('.motion-suspense');suspense.replaceChildren();
+    const grid=element('div','motion-reel-grid'+(draw.winners.length===1?' single':''));suspense.append(grid);
+    target.querySelector('.motion-caption').textContent='好運轉動中…';
+    target.querySelector('.motion-bottom').textContent='等待最後一格，停在你的好運。';
+    // 滾動的是末三碼的數字，不載入或假造其他學員姓名；停點只使用已保存的得獎資料。
+    const cards=draw.winners.map((winner,index)=>{
+      const card=element('div','motion-reel-card');card.append(element('p','motion-reel-order','第 '+String(index+1).padStart(2,'0')+' 位'));
+      const slots=element('div','motion-slots');slots.setAttribute('aria-hidden','true');
+      const rowHeight=innerWidth<600?64:88;slots.style.setProperty('--reel-height',rowHeight+'px');
+      const columns=String(winner.phoneTail).padStart(3,'0').slice(-3).split('').map((digit,col)=>{
+        const viewport=element('div','motion-reel'),track=element('div','motion-reel-track');
+        const last=40+Number(digit);
+        for(let i=0;i<=last+1;i++) track.append(element('span','motion-reel-digit',String(i%10)));
+        viewport.append(track);slots.append(viewport);
+        return {viewport,track,last,digit,col,rowHeight};
+      });
+      card.append(slots,element('small','motion-reel-label','手機末三碼'),element('strong','motion-reel-name','•••'));
+      grid.append(card);return {card,columns,winner,index};
+    });
+    target.scrollTop=0;
+    await Promise.all(cards.map(async item=>{
+      await Promise.all(item.columns.map(async column=>{
+        const distance=column.last*column.rowHeight;
+        const reel=column.track.animate([{transform:'translateY(0)'},{transform:'translateY(-'+distance+'px)'}],{
+          duration:3400+column.col*500+Math.min(item.index,4)*180,
+          easing:'cubic-bezier(.12,.78,.2,1)',fill:'forwards'
+        });
+        reelAnimations.add(reel);
+        try {await reel.finished;} catch(_) {return;} finally {reelAnimations.delete(reel);}
+        if(overlay!==target)return;
+        // 結束後換成單一數字，確保停格精準、調整視窗也不偏移。
+        column.track.style.transform='translateY(0)';reel.cancel();
+        column.track.replaceChildren(element('span','motion-reel-digit',column.digit));
+        column.viewport.classList.add('stopped');
+      }));
+      if(overlay!==target)return;
+      item.card.querySelector('.motion-reel-name').textContent=item.winner.name;
+      item.card.classList.add('locked');
+    }));
+    if(overlay!==target)return;
+    target.querySelector('.motion-caption').textContent='好運，停在這一刻！';
+    await delay(700);
+    if(overlay===target) target.classList.remove('spinning');
+  }
   async function reveal(draw) {
     if(!overlay || !draw) {close();return;}
     const target=overlay;
@@ -59,6 +106,8 @@
         const old=target.querySelector('.motion-symbol'),symbol=element('div','motion-symbol counting',n);old.replaceWith(symbol);
         await delay(800);
       }
+      if(overlay!==target)return;
+      await spinReels(target,draw);
     }
     if(overlay!==target)return;
     target.classList.add('revealed');target.querySelector('.motion-suspense').remove();target.querySelector('.motion-caption').remove();target.querySelector('.motion-bottom').remove();
