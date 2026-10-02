@@ -5,6 +5,7 @@
 <meta name="theme-color" content="#1e1730"><meta name="referrer" content="no-referrer">
 <title>聯合抽獎｜課程活動</title>
 <link rel="stylesheet" href="raffle.css">
+<link rel="stylesheet" href="raffle-motion.css?v=20261002-reveal">
 </head>
 <body>
 <div id="demoBanner" class="demo hidden">示範模式 · 使用虛構名單，結果只保存在這個分頁</div>
@@ -38,11 +39,12 @@
   </section>
   <section id="drawing" class="hidden">
     <div class="draw-heading"><div><p class="eyebrow">名單已確認 · 好運即將揭曉</p><h1 id="activeName"></h1><p id="activeMeta" class="muted"></p></div><button id="projection" class="quiet">投影模式</button></div>
-    <div class="draw-grid"><section class="card draw-controls"><p class="step">獎項設定</p><label for="prize">這次的獎項</label><input id="prize" maxlength="100" placeholder="例如：課程學習禮包"><label for="quantity">抽出幾位</label><input id="quantity" type="number" min="1" max="50" value="1"><p class="muted small">每次最多 50 位。抽出後會保存結果，已得獎者不再參加這個活動的後續抽獎。</p><button id="draw" class="primary">抽出得獎者</button><button id="refresh" class="quiet">重新載入結果</button><button id="export" class="quiet">下載得獎名單 CSV</button></section>
+    <div class="draw-grid"><section class="card draw-controls"><p class="step">獎項設定</p><label for="prize">這次的獎項</label><input id="prize" maxlength="100" placeholder="例如：課程學習禮包"><label for="quantity">抽出幾位</label><input id="quantity" type="number" min="1" max="50" value="1"><p class="muted small">每次最多 50 位。抽出後會保存結果，已得獎者不再參加這個活動的後續抽獎。</p><button id="draw" class="primary">抽出得獎者</button><button id="previewAnimation" class="quiet">試播動畫（不抽獎）</button><button id="refresh" class="quiet">重新載入結果</button><button id="export" class="quiet">下載得獎名單 CSV</button></section>
     <section class="stage" aria-live="polite"><p class="eyebrow" id="stageLabel">下一份好運，會是誰？</p><h2 id="stagePrize">準備好了嗎？</h2><div id="winners" class="winners"><span class="stage-symbol" aria-hidden="true">✧</span></div><p id="remaining"></p></section></div>
     <section class="card history"><h2>得獎紀錄</h2><p class="muted small">畫面顯示遮罩姓名與手機末三碼。完整得獎資料可下載留存。</p><div id="history"></div></section>
   </section>
 </main>
 <button id="exitProjection" class="hidden quiet">離開投影模式</button>
-<script src="raffle.js?v=20261002-name-hint"></script>
+<script src="raffle-motion.js?v=20261002-reveal"></script>
+<script src="raffle.js?v=20261002-reveal"></script>
 </body></html>

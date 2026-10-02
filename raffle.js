@@ -91,14 +91,18 @@ async function preview() {
 }
 async function mutate(payload) {
   if(state.busy) return;
+  const animate=payload.action==='adminRaffleDraw' && !pending();
   // 先可靠保存操作識別碼才送出。回應遺失或重開頁面，可重取同一結果。
   try { store(PENDING_KEY,payload); } catch (_) { message('瀏覽器無法保存操作狀態，請允許網站儲存資料後再試。',true); return; }
   busy(true); $('stageLabel').textContent='正在確認並保存結果…'; $('drawing').querySelector('.stage').classList.add('busy');
+  if(animate) {try{window.RaffleMotion?.start({eventName:state.active?.name || '',prize:payload.prize,count:payload.count,demo:DEMO});}catch(_){window.RaffleMotion?.abort();}}
   try {
     const res=await api(payload); clearPending(payload.requestId); renderActive(res); $('retryPending').classList.add('hidden');
     message(payload.action==='adminRaffleCreate'?'抽獎名單已固定保存，可以開始設定獎項。':'得獎結果已保存。重整頁面仍能查看同一結果。');
+    if(animate) {try{await window.RaffleMotion?.reveal(res.draws.find(d=>d.requestId===payload.requestId));}catch(_){window.RaffleMotion?.abort();}}
     try { await loadSaved(); } catch(_) { /* 已成功保存，活動列表稍後可重新載入。 */ }
   } catch(err) {
+    window.RaffleMotion?.abort();
     if(err.definite) { clearPending(payload.requestId); message(err.message,true); if(payload.action==='adminRaffleCreate') invalidate(); }
     else showPending();
   } finally { $('drawing').querySelector('.stage').classList.remove('busy'); busy(false); $('retryPending').classList.toggle('hidden',!pending()); }
@@ -148,6 +152,17 @@ $('retryPending').addEventListener('click',()=>{ const p=pending(); if(p) mutate
 $('openSaved').addEventListener('click',()=>open($('saved').value)); $('refresh').addEventListener('click',()=>open(state.active?.id));
 $('new').addEventListener('click',()=>{if(pending()){showPending();return;}state.active=null; storage.removeItem('raffle_last'); $('drawing').classList.add('hidden'); $('setup').classList.remove('hidden'); $('raffleName').value='';invalidate(); $('message').classList.add('hidden');});
 $('export').addEventListener('click',exportWinners);
+$('previewAnimation').addEventListener('click',async()=>{
+  if(state.busy || !state.active) return;
+  if(!window.RaffleMotion) {message('動畫元件尚未載入，請重新整理頁面。',true);return;}
+  busy(true);
+  try {
+    const count=Math.min(3,Math.max(1,Math.floor(Number($('quantity').value)||1))),prize=$('prize').value.trim() || '示範獎項';
+    window.RaffleMotion.start({eventName:'動畫預覽｜虛構得獎資料',prize,count,demo:true});
+    await window.RaffleMotion.reveal({prize,winners:Array.from({length:count},(_,i)=>({name:['示＊甲','示＊乙','示＊丙'][i],phoneTail:'00'+(i+1)}))});
+  } catch(_){window.RaffleMotion.abort();message('動畫播放失敗，抽獎名單與結果未變動。',true);}
+  finally {busy(false);}
+});
 function project(on){document.body.classList.toggle('projecting',on);$('exitProjection').classList.toggle('hidden',!on);window.scrollTo(0,0);}
 $('projection').addEventListener('click',()=>project(true)); $('exitProjection').addEventListener('click',()=>project(false)); document.addEventListener('keydown',e=>{if(e.key==='Escape') project(false);});
 $('logout').addEventListener('click',()=>{sessionStorage.removeItem('raffle_pass');localStorage.removeItem('admin_pass');state.pass='';location.reload();});
