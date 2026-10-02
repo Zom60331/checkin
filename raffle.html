@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1e1730"><meta name="referrer" content="no-referrer">
+<title>聯合抽獎｜課程活動</title>
+<link rel="stylesheet" href="raffle.css">
+</head>
+<body>
+<div id="demoBanner" class="demo hidden">示範模式 · 使用虛構名單，結果只保存在這個分頁</div>
+<section id="login" class="login card">
+  <p class="eyebrow">COURSE EVENTS / 抽獎</p><h1>好運，一起分享。</h1>
+  <p class="muted">合併現場與線上報名名單，不論有沒有到場，都有抽獎機會。</p>
+  <form id="loginForm"><label for="password">管理密碼</label><input id="password" type="password" autocomplete="current-password" required>
+  <button class="primary" id="loginBtn">進入抽獎</button></form>
+  <p id="loginMessage" role="alert"></p><a href="admin.html">回場次管理</a>
+</section>
+<main id="main" class="hidden wrap">
+  <header class="toolbar"><a class="wordmark" href="raffle.html">聯合抽獎<span>COURSE EVENTS</span></a>
+    <nav><a href="admin.html">場次管理</a><a href="console.html">簽到控制台</a><button id="logout" class="quiet">登出</button></nav></header>
+  <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+  <section class="workspace-tools"><label for="saved">已建立的抽獎活動</label><div class="inline"><select id="saved"><option value="">選擇活動，繼續抽獎或查看結果</option></select><button id="openSaved">開啟</button><button id="new" class="quiet">＋ 新抽獎活動</button></div></section>
+  <section id="setup">
+    <div class="intro"><p class="eyebrow">同一堂課，每個人都有機會</p><h1>把名單集合，<br>讓好運登場。</h1><p>現場與線上一起抽。同一手機一份資格，同一抽獎活動不重複得獎。</p></div>
+    <div class="setup-grid"><section class="card"><p class="step">01 / 選擇名單</p>
+      <label for="raffleName">抽獎活動名稱</label><input id="raffleName" maxlength="100" placeholder="例如：CB 班聯合抽獎">
+      <h2>從已登錄場次加入</h2><p class="muted small">可複選；未啟用的場次也能抽，簽到狀態不影響資格。</p><div id="events" class="event-list"></div>
+      <h2>另外加入線上或其他名單</h2><label for="sheetUrl">Google 試算表網址或 ID</label><div class="inline"><input id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…"><button id="loadTabs">讀取分頁</button></div>
+      <div id="externalFields" class="hidden"><label for="sheetTab">名單分頁</label><select id="sheetTab"></select><label for="sourceLabel">這份名單的名稱</label><input id="sourceLabel" maxlength="120" placeholder="例如：CB 線上報名"><button id="addSource" class="quiet">＋ 加入這份名單</button></div>
+      <ul id="externalList" class="sources"></ul><button id="preview" class="primary">檢查並合併名單 <span aria-hidden="true">→</span></button>
+    </section>
+    <section class="card review"><p class="step">02 / 確認抽獎資格</p><div id="reviewEmpty" class="empty"><span class="empty-symbol" aria-hidden="true">◎</span><h2>先選名單，再確認人數</h2><p>自動排除退款與交易失敗，<br>合併重複手機，不受是否到場影響。</p></div>
+      <div id="review" class="hidden"><div class="total"><strong id="eligible">0</strong><span>份抽獎資格</span></div><div id="counts" class="count-grid"></div><div id="sourceSummary"></div>
+      <details id="issuesBox"><summary id="issuesTitle">待確認資料</summary><div id="issues"></div></details>
+      <label class="check"><input id="acknowledge" type="checkbox"><span>我已確認資格與待確認資料；同一手機只有一份資格，缺姓名或手機不完整者暫不納入。</span></label>
+      <p class="muted small">建立後名單固定保存。若要補人或修改資格，請另建抽獎活動；不同抽獎活動的得獎紀錄不互相排除。</p><button id="create" class="primary" disabled>確認名單，建立抽獎活動</button></div>
+    </section></div>
+  </section>
+  <section id="drawing" class="hidden">
+    <div class="draw-heading"><div><p class="eyebrow">名單已確認 · 好運即將揭曉</p><h1 id="activeName"></h1><p id="activeMeta" class="muted"></p></div><button id="projection" class="quiet">投影模式</button></div>
+    <div class="draw-grid"><section class="card draw-controls"><p class="step">獎項設定</p><label for="prize">這次的獎項</label><input id="prize" maxlength="100" placeholder="例如：課程學習禮包"><label for="quantity">抽出幾位</label><input id="quantity" type="number" min="1" max="50" value="1"><p class="muted small">每次最多 50 位。抽出後會保存結果，已得獎者不再參加這個活動的後續抽獎。</p><button id="draw" class="primary">抽出得獎者</button><button id="refresh" class="quiet">重新載入結果</button><button id="export" class="quiet">下載得獎名單 CSV</button></section>
+    <section class="stage" aria-live="polite"><p class="eyebrow" id="stageLabel">下一份好運，會是誰？</p><h2 id="stagePrize">準備好了嗎？</h2><div id="winners" class="winners"><span class="stage-symbol" aria-hidden="true">✧</span></div><p id="remaining"></p></section></div>
+    <section class="card history"><h2>得獎紀錄</h2><p class="muted small">畫面顯示遮罩姓名與手機末三碼。完整得獎資料可下載留存。</p><div id="history"></div></section>
+  </section>
+</main>
+<button id="exitProjection" class="hidden quiet">離開投影模式</button>
+<script src="raffle.js"></script>
+</body></html>
