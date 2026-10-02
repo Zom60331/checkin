@@ -58,8 +58,8 @@
   button.block { width: 100%; padding: 14px; font-size: 18px; }
 
   /* ── 頂列 ── */
-  .topline { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-  .topline select { flex: 1; font-size: 16px; padding: 9px 10px; }
+  .topline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .topline select { flex: 1 1 180px; font-size: 16px; padding: 9px 10px; }
   .topline button { padding: 9px 12px; font-size: 15px; }
 
   /* ── 看板：手機第一眼就要看到 ── */
@@ -159,6 +159,7 @@
   <div class="topline">
     <select id="eventSel"></select>
     <button class="ghost" id="refreshBtn">重新整理</button>
+    <button class="ghost" id="reloadBtn">重讀名單</button>
     <button class="ghost" id="logoutBtn">登出</button>
   </div>
 
@@ -441,6 +442,16 @@ $('eventSel').addEventListener('change', function () {
 });
 
 $('refreshBtn').addEventListener('click', loadAll);
+
+// 名單試算表改過後用：清掉這場的快取再重載，不必等 5 分鐘自動更新
+$('reloadBtn').addEventListener('click', function () {
+  modal({
+    title: '重讀名單', sub: '名單試算表改過（新增、刪除、改狀態）後使用，立即套用最新名單。',
+    body: '',
+    okText: '重讀',
+    onOk: function (v, close) { close(); act('reloadRoster', {}, '已重新讀取名單'); }
+  });
+});
 
 $('logoutBtn').addEventListener('click', function () {
   try { localStorage.removeItem('console_pass'); } catch (e) {}
