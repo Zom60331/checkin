@@ -80,6 +80,7 @@
   .welcome {
     font-size: 19px;
     color: var(--ink-soft);
+    white-space: pre-line; /* 主控表儲存格內換行（Ctrl+Enter）照樣換行，可放當天段落介紹 */
     margin: 0 0 10px;
     padding-bottom: 9px;
     border-bottom: 2px dashed rgba(224, 196, 143, .35);
@@ -159,6 +160,7 @@
     background: var(--notice-bg);
     border: 1px solid rgba(224, 196, 143, .42);
     border-radius: 12px;
+    white-space: pre-line;
     display: none;
   }
   .notice.show { display: block; }
