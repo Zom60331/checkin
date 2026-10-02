@@ -26,7 +26,14 @@ async function api(payload) {
 }
 function sources() { return [...document.querySelectorAll('#events input:checked')].map(el=>({event:el.value})).concat(state.extra); }
 function invalidate() { state.preview=null; $('review').classList.add('hidden'); $('reviewEmpty').classList.remove('hidden'); syncCreate(); }
-function syncCreate() { $('create').disabled=state.busy || !state.preview?.ready || !$('acknowledge').checked || !$('raffleName').value.trim(); }
+function syncCreate() {
+  const missing=[];
+  if(!$('raffleName').value.trim()) missing.push('填寫抽獎活動名稱');
+  if(!$('acknowledge').checked) missing.push('勾選名單確認');
+  const hint=state.busy?'處理中，請稍候…':!state.preview?.ready?'請先檢查名單，確認至少有一位符合資格。':missing.length?'還差一步：請'+missing.join('、')+'。':'資料已齊全，可以建立抽獎活動。';
+  $('createHint').textContent=hint;
+  $('create').disabled=state.busy || !state.preview?.ready || missing.length>0;
+}
 function showPending() {
   const p=pending();
   $('retryPending').classList.toggle('hidden',!p);
@@ -130,7 +137,7 @@ $('sheetUrl').addEventListener('input',()=>{state.sheet=null; $('externalFields'
 $('addSource').addEventListener('click',()=>{ if(!state.sheet) return; const s={sheetId:state.sheet.sheetId,sheetName:$('sheetTab').value,label:$('sourceLabel').value.trim() || state.sheet.name}; if(state.extra.some(e=>e.sheetId===s.sheetId && e.sheetName===s.sheetName)){ message('這份名單已加入。',true); return; } state.extra.push(s); renderExtras(); invalidate(); });
 $('externalList').addEventListener('click',event=>{ const btn=event.target.closest('[data-remove]'); if(btn){state.extra.splice(Number(btn.dataset.remove),1);renderExtras();invalidate();} });
 $('preview').addEventListener('click',preview);
-$('create').addEventListener('click',()=>{ if(pending()){showPending();return;} if(!state.preview?.ready || !$('acknowledge').checked) return; mutate({action:'adminRaffleCreate',requestId:uuid(),name:$('raffleName').value.trim(),sources:sources(),token:state.preview.token,acknowledged:true}); });
+$('create').addEventListener('click',()=>{ if(state.busy) return; if(pending()){showPending();return;} if(!state.preview?.ready || !$('acknowledge').checked) return; if(!$('raffleName').value.trim()){syncCreate();$('raffleName').focus();return;} mutate({action:'adminRaffleCreate',requestId:uuid(),name:$('raffleName').value.trim(),sources:sources(),token:state.preview.token,acknowledged:true}); });
 $('draw').addEventListener('click',()=>{
   if(pending()){showPending();return;} if(!state.active) return;
   const prize=$('prize').value.trim(),count=Number($('quantity').value);
