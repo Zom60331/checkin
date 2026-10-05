@@ -95,7 +95,7 @@ async function mutate(payload) {
   // 先可靠保存操作識別碼才送出。回應遺失或重開頁面，可重取同一結果。
   try { store(PENDING_KEY,payload); } catch (_) { message('瀏覽器無法保存操作狀態，請允許網站儲存資料後再試。',true); return; }
   busy(true); $('stageLabel').textContent='正在確認並保存結果…'; $('drawing').querySelector('.stage').classList.add('busy');
-  if(animate) {try{window.RaffleMotion?.start({eventName:state.active?.name || '',prize:payload.prize,count:payload.count,demo:DEMO});}catch(_){window.RaffleMotion?.abort();}}
+  if(animate) {try{window.RaffleMotion?.start({eventName:state.active?.name || '',prize:payload.prize,count:payload.count,demo:DEMO,candidates:state.active?.candidates || []});}catch(_){window.RaffleMotion?.abort();}}
   try {
     const res=await api(payload); clearPending(payload.requestId); renderActive(res); $('retryPending').classList.add('hidden');
     message(payload.action==='adminRaffleCreate'?'抽獎名單已固定保存，可以開始設定獎項。':'得獎結果已保存。重整頁面仍能查看同一結果。');
@@ -158,8 +158,8 @@ $('previewAnimation').addEventListener('click',async()=>{
   busy(true);
   try {
     const count=Math.min(3,Math.max(1,Math.floor(Number($('quantity').value)||1))),prize=$('prize').value.trim() || '示範獎項';
-    window.RaffleMotion.start({eventName:'動畫預覽｜虛構得獎資料',prize,count,demo:true});
     const candidates=demoCandidates(),winners=candidates.slice(0,count),requestId='preview';
+    window.RaffleMotion.start({eventName:'動畫預覽｜虛構得獎資料',prize,count,demo:true,candidates});
     await window.RaffleMotion.reveal({prize,requestId,winners,animation:{requestId,candidates,winners}});
   } catch(_){window.RaffleMotion.abort();message('動畫播放失敗，抽獎名單與結果未變動。',true);}
   finally {busy(false);}
@@ -180,10 +180,10 @@ async function demoApi(p) {
   if(p.action==='adminRaffleList') return good({raffles:Object.values(demo).map(d=>({id:d.id,name:d.name,created:d.created,total:d.stats.eligible}))});
   if(p.action==='adminRaffleCreate') {
     if(!demo[p.requestId]) {demo[p.requestId]={id:p.requestId,name:p.name,created:new Date().toLocaleString('zh-TW'),stats:{eligible:8},remaining:8,revision:0,draws:[]};store('raffle_demo_data',demo);}
-    return good(demo[p.requestId]);
+    return good({...demo[p.requestId],candidates:demoCandidates().slice(8-demo[p.requestId].remaining)});
   }
   const d=demo[p.id]; if(!d) throw new Error('找不到示範活動');
-  if(p.action==='adminRaffleGet') return good(d);
+  if(p.action==='adminRaffleGet') return good({...d,candidates:demoCandidates().slice(8-d.remaining)});
   if(p.action==='adminRaffleDraw') {
     if(!d.draws.some(x=>x.requestId===p.requestId)) {
       if(d.remaining<p.count || d.revision!==p.revision) {const err=new Error('剩餘人數或結果已變動，請重新載入');err.definite=true;throw err;}
@@ -191,7 +191,7 @@ async function demoApi(p) {
       d.draws.push({requestId:p.requestId,prize:p.prize,count:p.count,time:new Date().toLocaleString('zh-TW'),winners:Array.from({length:p.count},(_,i)=>({name:names[start+i],phoneTail:String(101+start+i)}))});d.revision++;d.remaining-=p.count;store('raffle_demo_data',demo);
     }
     const index=d.draws.findIndex(x=>x.requestId===p.requestId),before=d.draws.slice(0,index).reduce((n,x)=>n+x.count,0),candidates=demoCandidates().slice(before);
-    return good({...d,animation:{requestId:p.requestId,candidates,winners:candidates.slice(0,d.draws[index].count)}});
+    return good({...d,candidates:demoCandidates().slice(8-d.remaining),animation:{requestId:p.requestId,candidates,winners:candidates.slice(0,d.draws[index].count)}});
   }
   if(p.action==='adminRaffleExport') return good({name:d.name,rows:[['獎項','姓名（示範）','手機末三碼','抽出時間'],...d.draws.flatMap(x=>x.winners.map(w=>[x.prize,w.name,w.phoneTail,x.time]))]});
   throw new Error('示範模式不支援此操作');

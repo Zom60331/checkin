@@ -24,7 +24,7 @@
 .motion-ring { position: absolute; inset: -28px; border: 1px solid #e7c58922; border-radius: 50%; animation: theater-breathe 1.8s ease-in-out infinite; }
 .motion-spark { position: absolute; top: 50%; left: 50%; height: 6px; width: 6px; border-radius: 50%; background: #ffe5aa; box-shadow: 0 0 16px #ffe5aa; transform: rotate(calc(var(--i) * 30deg)) translateX(min(34vw, 180px)); animation: theater-spark 1.2s calc(var(--i) * -100ms) ease-in-out infinite; }
 .motion-symbol { font-size: clamp(86px, 18vw, 144px); color: #ffe3a6; text-shadow: 0 0 45px #ffcf7166; line-height: 1; }
-.motion-symbol.counting { animation: theater-number .8s ease-out both; font-family: Georgia, serif; font-variant-numeric: tabular-nums; }
+.motion-symbol.counting { animation: theater-number 1s ease-out both; font-family: Georgia, serif; font-variant-numeric: tabular-nums; }
 .motion-caption { color: #cebddc; letter-spacing: .12em; font-size: 15px; margin: 6px 0 18px; }
 .motion-bottom { color: #baa9c9; font-size: 13px; margin: 0; }
 .motion-results { width: 100%; max-width: 1160px; margin: 32px auto; }
