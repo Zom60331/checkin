@@ -20,7 +20,7 @@
     overlay=element('section','draw-theater'); overlay.setAttribute('role','dialog'); overlay.setAttribute('aria-modal','true'); overlay.setAttribute('aria-label','抽獎揭曉'); overlay.tabIndex=-1;
     overlay.append(element('p','motion-event',eventName),element('p','motion-kicker',demo?'示範抽獎 · 虛構名單':'好運，即將揭曉'),element('h2','motion-prize',prize));
     const suspense=element('div','motion-suspense'),orbit=element('div','motion-orbit');
-    orbit.append(element('i','motion-ring'));
+    orbit.append(element('i','motion-rays'),element('i','motion-ring'));
     for(let i=0;i<12;i++){const spark=element('i','motion-spark');spark.style.setProperty('--i',i);orbit.append(spark);}
     orbit.setAttribute('aria-hidden','true');orbit.append(element('div','motion-symbol','✦'));suspense.append(orbit);
     const caption=element('p','motion-caption','正在抽選 '+count+' 位幸運學員…');caption.setAttribute('role','status');
@@ -124,7 +124,17 @@
       target.dataset.phase='countdown';target.querySelector('.motion-caption').textContent='準備揭曉';
       for(const n of ['3','2','1']) {
         if(overlay!==target)return;
-        const symbol=element('div','motion-symbol counting',n);target.querySelector('.motion-symbol').replaceWith(symbol);
+        const symbol=element('div','motion-symbol counting');
+        const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),text=document.createElementNS(ns,'text');
+        svg.setAttribute('viewBox','0 0 160 160');svg.setAttribute('aria-hidden','true');
+        text.setAttribute('font-size','160');text.setAttribute('fill','currentColor');text.textContent=n;svg.append(text);symbol.append(svg);
+        target.querySelector('.motion-symbol').replaceWith(symbol);
+        // 依字形實際邊界置中，避免字型基線讓 3／2／1 看起來偏下。
+        const context=document.createElement('canvas').getContext('2d');
+        context.font='160px '+getComputedStyle(symbol).fontFamily;
+        const ink=context.measureText(n);
+        text.setAttribute('x',80+(ink.actualBoundingBoxLeft-ink.actualBoundingBoxRight)/2);
+        text.setAttribute('y',80+(ink.actualBoundingBoxAscent-ink.actualBoundingBoxDescent)/2);
         await delay(1000);
       }
     }

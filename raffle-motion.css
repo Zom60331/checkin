@@ -1,5 +1,5 @@
 .draw-theater {
-  position: fixed; inset: 0; z-index: 100; overflow: auto;
+  position: fixed; inset: 0; z-index: 100; overflow: auto; overflow-x: hidden;
   display: flex; flex-direction: column; align-items: center;
   padding: 44px 24px 32px; text-align: center;
   background: radial-gradient(ellipse at 50% 42%, #503461 0, #21152f 45%, #120d1d 100%);
@@ -15,6 +15,11 @@
 .draw-theater .motion-prize { font-size: clamp(24px, 4vw, 42px); margin: 0; color: #f5dda9; max-width: 900px; overflow-wrap: anywhere; }
 .motion-suspense { flex: 1; min-height: 330px; display: flex; align-items: center; justify-content: center; width: 100%; }
 .motion-orbit { width: min(64vw, 330px); aspect-ratio: 1; position: relative; display: grid; place-items: center; margin: 32px; }
+/* 倒數的光暈與光芒依附圓環，旋轉時保持同一圓心。 */
+.draw-theater:has(.motion-orbit) { background: #21152f; overflow: clip; }
+.draw-theater:has(.motion-orbit)::before { display: none; }
+.motion-rays { position: absolute; width: 220vmax; height: 220vmax; left: 50%; top: 50%; z-index: -1; pointer-events: none; background: radial-gradient(circle at center, #503461 0, #21152f 28%, #120d1d 65%); transform: translate(-50%, -50%); }
+.motion-rays::after { content: ''; position: absolute; inset: 0; background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 17deg, #efcf9810 18deg 20deg, transparent 21deg 30deg); opacity: .45; animation: theater-rays 36s linear infinite; }
 .motion-orbit::before, .motion-orbit::after {
   content: ''; position: absolute; inset: 0; border: 1px solid #f2d39b80; border-radius: 50%;
   box-shadow: 0 0 50px #deb56a18, inset 0 0 50px #deb56a18;
@@ -22,8 +27,9 @@
 .motion-orbit::before { border-top: 4px solid #ffe2a7; border-bottom: 4px solid #ffe2a7; animation: theater-orbit 2s linear infinite; }
 .motion-orbit::after { inset: 18px; border-style: dashed; opacity: .55; animation: theater-orbit 12s linear infinite reverse; }
 .motion-ring { position: absolute; inset: -28px; border: 1px solid #e7c58922; border-radius: 50%; animation: theater-breathe 1.8s ease-in-out infinite; }
-.motion-spark { position: absolute; top: 50%; left: 50%; height: 6px; width: 6px; border-radius: 50%; background: #ffe5aa; box-shadow: 0 0 16px #ffe5aa; transform: rotate(calc(var(--i) * 30deg)) translateX(min(34vw, 180px)); animation: theater-spark 1.2s calc(var(--i) * -100ms) ease-in-out infinite; }
+.motion-spark { position: absolute; top: 50%; left: 50%; height: 6px; width: 6px; border-radius: 50%; background: #ffe5aa; box-shadow: 0 0 16px #ffe5aa; transform: translate(-50%, -50%) rotate(calc(var(--i) * 30deg)) translateX(min(34vw, 180px)); animation: theater-spark 1.2s calc(var(--i) * -100ms) ease-in-out infinite; }
 .motion-symbol { font-size: clamp(86px, 18vw, 144px); color: #ffe3a6; text-shadow: 0 0 45px #ffcf7166; line-height: 1; }
+.motion-symbol svg { display: block; width: 1em; height: 1em; overflow: visible; }
 .motion-symbol.counting { animation: theater-number 1s ease-out both; font-family: Georgia, serif; font-variant-numeric: tabular-nums; }
 .motion-caption { color: #cebddc; letter-spacing: .12em; font-size: 15px; margin: 6px 0 18px; }
 .motion-bottom { color: #baa9c9; font-size: 13px; margin: 0; }
