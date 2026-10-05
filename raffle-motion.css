@@ -107,3 +107,7 @@
 @media(prefers-reduced-motion:reduce) {
   .draw-theater *, .draw-theater::before, .draw-theater *::before, .draw-theater *::after { animation: none !important; }
 }
+
+.motion-skip { position: sticky; bottom: 12px; z-index: 3; flex-shrink: 0; margin-top: 16px; min-height: 44px; padding: 9px 22px; color: #ebcb8e; background: #21152fee; border: 1px solid #ebcb8e66; border-radius: 10px; font-size: 14px; }
+.motion-skip:hover:not(:disabled) { background: #44304f; border-color: #ebcb8e; }
+.motion-skip:disabled { opacity: .65; }

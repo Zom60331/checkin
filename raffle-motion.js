@@ -4,10 +4,11 @@
   const reelAnimations=new Set();
   const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const wait=(session,ms)=>Promise.race([delay(ms),session.skipped]);
   function element(tag,cls,text) { const el=document.createElement(tag); el.className=cls; if(text!==undefined) el.textContent=text; return el; }
   function close() {
     if(!overlay) return;
-    current?.resolve(null);current=null;
+    current?.resolve(null);current?.skipResolve();current=null;
     cancelAnimationFrame(animation); reelAnimations.forEach(a=>a.cancel()); reelAnimations.clear(); overlay.remove(); overlay=null;
     document.body.style.overflow=previousOverflow;
     const main=document.getElementById('main'); if(main) main.inert=mainWasInert;
@@ -27,11 +28,24 @@
     overlay.append(suspense,caption,element('p','motion-bottom','下一份好運，會是誰？'));
     overlay.addEventListener('keydown',event=>{
       if(event.key==='Escape' && overlay?.classList.contains('revealed')) {event.stopPropagation();close();}
-      if(event.key==='Tab'){event.preventDefault();const focus=overlay?.querySelector('button') || overlay;focus?.focus();}
+      if(event.key==='Tab'){event.preventDefault();const focus=overlay?.querySelector('button:not(:disabled)') || overlay;focus?.focus();}
     });
     document.body.append(overlay);overlay.focus();
-    const session={target:overlay,count,candidates};
+    const session={target:overlay,count,candidates,skip:false};
+    session.skipped=new Promise(resolve=>{session.skipResolve=resolve;});
     session.result=new Promise(resolve=>{session.resolve=resolve;});current=session;
+    const skip=element('button','motion-skip','快速抽完');skip.type='button';
+    skip.title='跳過剩餘動畫，顯示本次設定名額的全部得獎者';
+    skip.addEventListener('click',()=>{
+      if(current!==session || session.skip)return;
+      session.skip=true;session.skipResolve();skip.disabled=true;skip.textContent='等待結果保存…';
+      reelAnimations.forEach(a=>a.cancel());reelAnimations.clear();cancelAnimationFrame(animation);
+      session.target.querySelector('.motion-confetti')?.remove();
+      session.target.querySelector('.motion-symbol')?.replaceChildren(document.createTextNode('✦'));
+      session.target.querySelector('.motion-caption').textContent='正在確認本次全部得獎結果…';
+      session.target.dataset.phase='waiting';
+    });
+    overlay.append(skip);
     // run 會在第一次 await 前顯示 3；呼叫端同時送出抽獎，不等待動畫。
     session.done=run(session).catch(()=>{if(current===session)close();});
   }
@@ -96,7 +110,7 @@
     if(reel)reelAnimations.add(reel);
     return {stage,pool,sequence,height,reel};
   }
-  async function stopOn(fast,winner) {
+  async function stopOn(fast,winner,session,duration) {
     const {stage,pool,sequence,height,reel}=fast,{target,viewport,track}=stage;
     // 從快轉的當下位置接上減速；不跳回起點，也不提前顯示尚未保存的得獎者。
     const offset=reel?Math.max(0,-new DOMMatrixReadOnly(getComputedStyle(track).transform).m42):0;
@@ -108,15 +122,16 @@
     if(others.length){sequence[last-1]=others[0];sequence[last+1]=others[1%others.length];}
     track.replaceChildren(...sequence.map(nameRow));target.dataset.phase='slowing';
     target.querySelector('.motion-caption').textContent='好運，即將停在這一刻！';
-    const landing=pool.length>1?track.animate([{transform:'translateY(-'+offset+'px)'},{transform:'translateY(-'+(last-1)*height+'px)'}],{duration:1000,easing:'cubic-bezier(.3,.7,.4,1)',fill:'forwards'}):null;
+    const landing=pool.length>1?track.animate([{transform:'translateY(-'+offset+'px)'},{transform:'translateY(-'+(last-1)*height+'px)'}],{duration,easing:'cubic-bezier(.3,.7,.4,1)',fill:'forwards'}):null;
     if(landing)reelAnimations.add(landing);
-    try {await (landing?landing.finished:delay(1000));} catch(_) {return false;} finally {reelAnimations.delete(landing);}
+    try {await (landing?landing.finished:wait(session,duration));} catch(_) {return session.skip && overlay===target;} finally {reelAnimations.delete(landing);}
     if(overlay!==target)return false;
+    if(session.skip)return true;
     track.replaceChildren(...sequence.slice(last-1,last+2).map(nameRow));track.style.transform='translateY(0)';landing?.cancel();
     viewport.classList.add('locked');viewport.dataset.winnerKey=winner.key;target.dataset.phase='locked';
     target.querySelector('.motion-caption').textContent='恭喜 '+winner.name+' · 手機末三碼 '+winner.phoneTail;
-    await delay(450);if(overlay!==target)return false;confetti(target);target.dataset.phase='confetti';
-    await delay(1200);return overlay===target;
+    await wait(session,450);if(overlay!==target)return false;if(session.skip)return true;confetti(target);target.dataset.phase='confetti';
+    await wait(session,1200);return overlay===target;
   }
   async function run(session) {
     const {target}=session;
@@ -124,6 +139,7 @@
       target.dataset.phase='countdown';target.querySelector('.motion-caption').textContent='準備揭曉';
       for(const n of ['3','2','1']) {
         if(overlay!==target)return;
+        if(session.skip)break;
         const symbol=element('div','motion-symbol counting');
         const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),text=document.createElementNS(ns,'text');
         svg.setAttribute('viewBox','0 0 160 160');svg.setAttribute('aria-hidden','true');
@@ -135,21 +151,21 @@
         const ink=context.measureText(n);
         text.setAttribute('x',80+(ink.actualBoundingBoxLeft-ink.actualBoundingBoxRight)/2);
         text.setAttribute('y',80+(ink.actualBoundingBoxAscent-ink.actualBoundingBoxDescent)/2);
-        await delay(1000);
+        await wait(session,1000);
       }
     }
     if(overlay!==target)return;
     let stage=null,fast=null;
-    if(!reduced() && session.candidates.length) {
+    if(!reduced() && !session.skip && session.candidates.length) {
       stage=makeStage(target);fast=beginFast(stage,session.candidates,0,session.count);
-    } else if(!reduced()) {
+    } else if(!reduced() && !session.skip) {
       // 舊後端或資料缺少時不造假姓名；正常新版建立／載入時已備好候選名單。
       target.querySelector('.motion-symbol').textContent='✦';target.querySelector('.motion-caption').textContent='正在確認結果…';
     }
     const draw=await session.result;
     if(overlay!==target || !draw)return;
     const canSpin=validAnimation(draw);
-    if(!reduced() && canSpin) {
+    if(!reduced() && !session.skip && canSpin) {
       let pool=draw.animation.candidates.slice();
       stage=stage || makeStage(target);
       // 以後端該輪資料為準。舊頁面或不一致的預載不能決定資格或停點。
@@ -158,15 +174,19 @@
       if(!same){cancelReel(fast?.reel);fast=beginFast(stage,pool,0,draw.winners.length);}
       for(let index=0;index<draw.animation.winners.length;index++) {
         if(overlay!==target)return;
-        if(index>0){fast=beginFast(stage,pool,index,draw.winners.length);await delay(1000);if(overlay!==target)return;}
+        if(session.skip)break;
+        if(index>0){fast=beginFast(stage,pool,index,draw.winners.length);await wait(session,1000);if(overlay!==target)return;}
+        if(session.skip)break;
         const winner=draw.animation.winners[index];
-        if(!await stopOn(fast,winner))return;
+        if(!await stopOn(fast,winner,session,index===0?2000:1000))return;
+        if(session.skip)break;
         const awarded=element('div','motion-awarded-person');awarded.dataset.key=winner.key;
         awarded.append(element('span','',String(index+1).padStart(2,'0')),element('strong','',winner.name),element('small','',winner.phoneTail));stage.tray.append(awarded);
         pool=pool.filter(p=>p.key!==winner.key);
       }
     } else {cancelReel(fast?.reel);}
     if(overlay!==target)return;
+    cancelReel(fast?.reel);target.querySelector('.motion-skip')?.remove();
     target.classList.remove('spinning');target.dataset.phase='revealed';
     target.classList.add('revealed');target.querySelector('.motion-suspense').remove();target.querySelector('.motion-caption').remove();target.querySelector('.motion-bottom').remove();
     target.querySelector('.motion-kicker').textContent=canSpin?'THE LUCKY MOMENT':'得獎結果已保存';
@@ -177,6 +197,7 @@
     target.append(results,element('p','motion-bottom','本輪 '+draw.winners.length+' 位得獎者 · 結果已保存'),button);
     target.setAttribute('aria-label',draw.prize+'：'+draw.winners.length+' 位得獎者已揭曉');
     target.scrollTop=0;button.focus({preventScroll:true});
+    if(session.skip)confetti(target);
     if(!canSpin && !reduced()) target.querySelector('.motion-bottom').textContent='輪播資料未取得，直接顯示已保存結果 · 不需重新抽獎';
   }
   async function reveal(draw) {
