@@ -178,7 +178,7 @@
         if(index>0){fast=beginFast(stage,pool,index,draw.winners.length);await wait(session,1000);if(overlay!==target)return;}
         if(session.skip)break;
         const winner=draw.animation.winners[index];
-        if(!await stopOn(fast,winner,session,index===0?2000:1000))return;
+        if(!await stopOn(fast,winner,session,index===0?3000:1000))return;
         if(session.skip)break;
         const awarded=element('div','motion-awarded-person');awarded.dataset.key=winner.key;
         awarded.append(element('span','',String(index+1).padStart(2,'0')),element('strong','',winner.name),element('small','',winner.phoneTail));stage.tray.append(awarded);
