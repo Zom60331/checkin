@@ -24,7 +24,7 @@ async function api(payload) {
     return res;
   } finally { clearTimeout(timer); }
 }
-function sources() { return [...document.querySelectorAll('#events input:checked')].map(el=>({event:el.value})).concat(state.extra); }
+function sources() { return [...document.querySelectorAll('#events input:checked')].map(el=>({event:el.value})).concat([...document.querySelectorAll('#cmsRaffleSources input:checked')].map(el=>({sourceId:el.value})),state.extra); }
 function invalidate() { state.preview=null; $('review').classList.add('hidden'); $('reviewEmpty').classList.remove('hidden'); syncCreate(); }
 function syncCreate() {
   const missing=[];
@@ -48,8 +48,9 @@ async function login(event) {
   event?.preventDefault();
   state.pass=$('password').value; $('loginBtn').disabled=true; $('loginMessage').textContent='';
   try {
-    const [events,list]=await Promise.all([api({action:'adminEvents'}),api({action:'adminRaffleList'})]);
-    state.events=events.events.slice().reverse();
+    const [events,list,cms]=await Promise.all([api({action:'adminEvents'}),api({action:'adminRaffleList'}),DEMO ? Promise.resolve({sources:[]}) : api({action:'adminSources'})]);
+    state.events=events.events.filter(ev=>!ev.sourceId).slice().reverse();
+    $('cmsRaffleSources').innerHTML=cms.sources.map(s=>'<label class="event-option"><input type="checkbox" value="'+esc(s.id)+'"><span><strong>'+esc(s.name)+'</strong><small>CMS '+esc(s.courseId)+' · '+s.stats.eligible+' 筆有效報名<br>最後同步 '+esc(s.updated)+'</small></span></label>').join('') || '<p class="muted small">尚無 CMS 匯入名單，可沿用下方名單來源。</p>';
     $('events').innerHTML=state.events.map(ev=>'<label class="event-option"><input type="checkbox" value="'+esc(ev.code)+'"'+(ev.duplicate?' disabled':'')+'><span><strong>'+esc(ev.name || ev.code)+'</strong><small>'+esc(ev.date || '未填日期')+' · '+esc(ev.code)+(ev.duplicate?' · 代碼重複，請先修正':'')+'</small></span></label>').join('') || '<p class="muted">尚未登錄場次，可以使用下方的試算表名單。</p>';
     $('saved').innerHTML='<option value="">選擇活動，繼續抽獎或查看結果</option>'+list.raffles.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.name)+' · '+r.total+' 人 · '+esc(r.created)+'</option>').join('');
     sessionStorage.setItem('raffle_pass',state.pass);
@@ -141,6 +142,7 @@ $('sheetUrl').addEventListener('input',()=>{state.sheet=null; $('externalFields'
 $('addSource').addEventListener('click',()=>{ if(!state.sheet) return; const s={sheetId:state.sheet.sheetId,sheetName:$('sheetTab').value,label:$('sourceLabel').value.trim() || state.sheet.name}; if(state.extra.some(e=>e.sheetId===s.sheetId && e.sheetName===s.sheetName)){ message('這份名單已加入。',true); return; } state.extra.push(s); renderExtras(); invalidate(); });
 $('externalList').addEventListener('click',event=>{ const btn=event.target.closest('[data-remove]'); if(btn){state.extra.splice(Number(btn.dataset.remove),1);renderExtras();invalidate();} });
 $('preview').addEventListener('click',preview);
+$('cmsRaffleSources').addEventListener('change',invalidate);
 $('create').addEventListener('click',()=>{ if(state.busy) return; if(pending()){showPending();return;} if(!state.preview?.ready || !$('acknowledge').checked) return; if(!$('raffleName').value.trim()){syncCreate();$('raffleName').focus();return;} mutate({action:'adminRaffleCreate',requestId:uuid(),name:$('raffleName').value.trim(),sources:sources(),token:state.preview.token,acknowledged:true}); });
 $('draw').addEventListener('click',()=>{
   if(pending()){showPending();return;} if(!state.active) return;

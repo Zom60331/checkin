@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1e1730">
 <title>場次管理</title>
+<link rel="stylesheet" href="admin-cms.css?v=20261008">
 <style>
   /* 色票與簽到頁、控制台一致 */
   :root {
@@ -110,7 +111,7 @@
 <!-- ── 登入 ── -->
 <div class="login" id="loginBox">
   <h1>場次管理</h1>
-  <p>開場前檢查名單、預覽簽到頁、產生 QR code</p>
+  <p>匯入課程名單、建立場次、準備簽到與抽獎</p>
   <label for="pw">管理密碼</label>
   <input id="pw" type="password" autocomplete="current-password">
   <button class="block" id="loginBtn">進入</button>
@@ -124,9 +125,18 @@
     <a class="btn ghost" href="raffle.html">聯合抽獎</a>
     <a class="btn ghost" href="console.html">簽到控制台</a>
     <a class="btn ghost" id="masterLink" target="_blank" rel="noopener">開啟主控表</a>
-    <button class="ghost" id="refreshBtn">重新整理</button>
+    <button class="ghost" id="refreshBtn">更新場次列表</button>
     <button class="ghost" id="logoutBtn">登出</button>
   </div>
+  <section id="cmsPanel" class="cms-panel">
+    <div class="cms-heading"><div><p class="cms-eyebrow">準備下一場活動</p><h2>名單到位，就能開場。</h2><p class="cms-muted">從 CMS 匯入報名資料，再建立簽到場次。線上名單也能直接加入抽獎。</p></div>
+    <div class="cms-actions"><button id="cmsImport">從 CMS 匯入</button><button class="ghost" id="cmsNewEvent">＋ 新增場次</button></div></div>
+    <p id="cmsConnection" class="cms-muted" role="status">正在檢查匯入助手…</p>
+    <div class="cms-actions"><button id="cmsLogin" class="ghost">開啟 CMS 登入</button><button id="cmsDetect" class="ghost">重新檢查助手</button><a href="cms-help.html" target="_blank" rel="noopener">首次使用說明</a></div>
+    <p id="cmsMessage" role="status" class="cms-muted"></p><button id="cmsPending" class="ghost hidden">確認上次名單操作</button>
+    <h3>名單來源</h3><div id="cmsSources" class="cms-sources"></div>
+  </section>
+  <h2>簽到場次</h2>
   <div id="list"></div>
 </div>
 
@@ -272,6 +282,7 @@ function showEvents(res) {
       '<div class="meta">' + esc(ev.code) + (ev.date ? ' ｜ ' + esc(ev.date) : '') + '</div>' +
       '<div class="acts">' +
         '<button data-act="check">檢查</button>' +
+        '<button class="ghost" data-act="edit">編輯場次</button>' +
         '<a class="btn ghost" href="' + esc(signinUrl(ev.code)) + '" target="_blank" rel="noopener">預覽簽到頁</a>' +
         '<button class="ghost" data-act="qr">QR code</button>' +
       '</div>' +
@@ -401,5 +412,6 @@ if (DEMO) {
   } catch (e) {}
 }
 </script>
+<script src="admin-cms.js?v=20261008"></script>
 </body>
 </html>
