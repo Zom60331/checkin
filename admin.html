@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#1e1730">
 <title>場次管理</title>
 <link rel="stylesheet" href="admin-cms.css?v=20261008">
+<link rel="stylesheet" href="admin-report.css?v=20261013">
 <style>
   /* 色票與簽到頁、控制台一致 */
   :root {
@@ -285,6 +286,7 @@ function showEvents(res) {
         '<button class="ghost" data-act="edit">編輯場次</button>' +
         '<a class="btn ghost" href="' + esc(signinUrl(ev.code)) + '" target="_blank" rel="noopener">預覽簽到頁</a>' +
         '<button class="ghost" data-act="qr">QR code</button>' +
+        '<button class="ghost" data-act="report">報到總表</button>' +
       '</div>' +
       '<div class="check hidden"></div>' +
     '</div>';
@@ -413,5 +415,6 @@ if (DEMO) {
 }
 </script>
 <script src="admin-cms.js?v=20261008"></script>
+<script src="admin-report.js?v=20261013"></script>
 </body>
 </html>
