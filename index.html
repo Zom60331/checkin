@@ -107,6 +107,10 @@
     box-shadow: 0 0 0 4px var(--brand-mist);
   }
   input::placeholder { color: var(--ink-soft); opacity: .55; }
+  /* 窄螢幕（約 350px 以下）縮小字級與字距，完整 10 碼才不會超出輸入框 */
+  @media (max-width: 350px) {
+    input { font-size: 28px; letter-spacing: 3px; }
+  }
 
   button {
     width: 100%;
@@ -180,11 +184,11 @@
     <p class="event-date" id="eventDate"></p>
     <p class="welcome" id="welcome">歡迎抵達，請完成簽到</p>
 
-    <label for="code" id="inputLabel">請輸入手機號碼末四碼</label>
+    <label for="code" id="inputLabel">請輸入手機號碼（完整號碼）</label>
     <p class="hint" id="inputHint" hidden></p>
 
     <input id="code" type="tel" inputmode="numeric" autocomplete="off"
-           maxlength="10" placeholder="5678">
+           maxlength="10" placeholder="0912345678">
     <button id="submit">送出簽到</button>
 
     <div id="result"></div>
@@ -299,9 +303,9 @@ function setBusy(busy) {
 
 function show(html) { resultBox.innerHTML = html; }
 
-// 把輸入提示還原成預設（末四碼）狀態
+// 把輸入提示還原成預設狀態
 function resetPrompt() {
-  $('inputLabel').textContent = '請輸入手機號碼末四碼';
+  $('inputLabel').textContent = '請輸入手機號碼（完整號碼）';
   $('inputHint').hidden = true;
   $('inputHint').textContent = '';
 }
@@ -339,7 +343,7 @@ function submitCheckIn() {
         if (res.orderId)   rows += '<div class="row"><span class="k">訂單編號</span><span class="v">' + escapeHtml(res.orderId) + '</span></div>';
         show('<p class="msg success">' + escapeHtml(res.message) + '</p><div class="detail">' + rows + '</div>');
         codeInput.value = '';
-        codeInput.placeholder = '5678';
+        codeInput.placeholder = '0912345678';
         codeInput.blur();
         resetPrompt(); // 上一位若觸發過撞號，這裡把提示還原給下一位
         // 捲到結果，避免結果落在螢幕外讓人以為沒反應
