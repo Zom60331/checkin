@@ -72,6 +72,14 @@
       }
       view.data = res;
       render();
+      // 使用暫存站時，補上「還有幾筆沒寫回試算表」，避免把還沒同步的人當成缺席
+      if (window.StationStatus && !DEMO) {
+        window.StationStatus.forEvent(view.ev.code).then(function (sync) {
+          if (view.el !== el || view.data !== res || !sync || sync.state === 'purged') return;
+          res.stationSync = sync;
+          render();
+        });
+      }
     }).catch(function () {
       if (view.el === el) sheet().innerHTML = '<div class="rp-state bad">連線失敗，請按「重新讀取」</div>';
     });
@@ -303,7 +311,10 @@
     html += '<div class="rp-foot">應到＝交易成功的報名' + (d.zeroAbsent.length > 0 ? '（不含講座金額 0）' : '') + '。' +
       (s.abnormalAbsent > 0 ? '退款、失敗等未到場的 ' + s.abnormalAbsent + ' 筆不列名。' : '') +
       (s.unlisted > 0 ? '另有 ' + s.unlisted + ' 人的簽到紀錄對不到目前名單（名單在簽到後有異動）。' : '') +
-      (ev.enabled ? '這場目前仍開放簽到。' : '') + '</div>';
+      (ev.enabled ? '這場目前仍開放簽到。' : '') +
+      (d.stationSync ? (d.stationSync.pending > 0
+        ? '<b>暫存站還有 ' + d.stationSync.pending + ' 筆動作沒寫回試算表，這張表可能少算；約一分鐘後按「重新讀取」。</b>'
+        : '暫存站的動作都已寫回試算表。') : '') + '</div>';
 
     sheet().innerHTML = html;
     fit();

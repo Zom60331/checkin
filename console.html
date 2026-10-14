@@ -74,6 +74,7 @@
   .stat .v.ok { color: var(--success); }
   .stat .v.wait { color: var(--gold); }
   .updated { text-align: right; font-size: 13px; color: var(--ink-soft); opacity: .75; margin: -4px 0 10px; }
+  .updated.warn { color: var(--gold); opacity: 1; }
 
   /* ── 工具列 ── */
   .tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -180,13 +181,13 @@
   <div id="list"></div>
 </div>
 
+<script src="backend.js?v=20261014"></script>
 <script>
-// ===== 設定：換成你的 Apps Script /exec 網址（與簽到頁同一個） =====
-var API = 'https://script.google.com/macros/s/AKfycbwwoZnAoiftITok6hGpFkKGzaRX4WqshVEbbHL1d_DwRKrmm3LHBDayZfaDtc0aO-In/exec';
+// 後端網址由 backend.js 依 config.json 決定（舊入口或暫存站）；控制台以整體模式為準，彩排時在網址加 ?backend=station
 
 var POLL_MS = 15000; // 看板自動更新間隔
 
-var state = { pass: '', operator: '', event: '', filter: 'all', keyword: '', rows: [], timer: null };
+var state = { pass: '', operator: '', event: '', filter: 'all', keyword: '', rows: [], timer: null, backend: '', seq: null, ver: null };
 var $ = function (id) { return document.getElementById(id); };
 
 function esc(s) {
@@ -237,15 +238,22 @@ function demoApi(payload) {
 
 function api(payload) {
   if (DEMO) return demoApi(payload);
-  if (API.indexOf('PASTE_YOUR') === 0) {
-    return Promise.resolve({ status: 'error', message: '尚未設定後端網址，請先修改 console.html 最上方的 API 變數' });
-  }
   payload.pass = state.pass;
-  return fetch(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
-  }).then(function (r) { return r.json(); });
+  // 看板每 15 秒輪詢時順便確認設定（超過一分鐘才重讀）；後端換了就整頁重載，重新登入新的後端
+  return CheckinBackend.fresh(60000).then(function (config) {
+    var backend = CheckinBackend.pick(config, '');
+    if (state.backend && state.backend !== backend.kind) {
+      toast(backend.kind === 'station' ? '已切換到暫存站，重新載入中…' : '已切回舊入口，重新載入中…', 'bad');
+      setTimeout(function () { location.reload(); }, 1500);
+      return new Promise(function () {});
+    }
+    state.backend = backend.kind;
+    return fetch(backend.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+  });
 }
 
 function toast(msg, kind) {
@@ -293,7 +301,8 @@ function enterMain(events) {
 
   var sel = $('eventSel');
   sel.innerHTML = events.map(function (ev) {
-    return '<option value="' + esc(ev.code) + '">' + esc(ev.name || ev.code) + (ev.date ? '（' + esc(ev.date) + '）' : '') + '</option>';
+    return '<option value="' + esc(ev.code) + '">' + esc(ev.name || ev.code) + (ev.date ? '（' + esc(ev.date) + '）' : '') +
+      (ev.closing ? '［已關閉簽到］' : '') + '</option>';
   }).join('');
 
   if (events.length === 0) {
@@ -311,9 +320,26 @@ function enterMain(events) {
 }
 
 // ---------- 載入 ----------
+// 暫存站的同步狀態：尚未寫回試算表的筆數、上次同步結果、是否已關閉簽到
+function syncText(sync) {
+  if (!sync) return '';
+  var parts = [];
+  if (sync.state === 'closing') parts.push('這場已關閉簽到，只能查看');
+  if (sync.pending > 0) parts.push('尚未寫回試算表 ' + sync.pending + ' 筆');
+  if (!sync.lastAt) parts.push('尚未同步');
+  else parts.push('上次同步 ' + String(sync.lastAt).slice(-8) + (sync.lastOk === false ? '（失敗：' + (sync.lastMessage || '原因不明') + '）' : ''));
+  return '暫存站｜' + parts.join('｜');
+}
+
 function loadBoard() {
-  return api({ action: 'dashboard', event: state.event }).then(function (res) {
+  // 暫存站：帶上次的序號，沒有新動作就不重算（舊入口會忽略這兩個參數）
+  return api({ action: 'dashboard', event: state.event, since: state.seq, ver: state.ver }).then(function (res) {
     if (res.status !== 'success') { $('board').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
+    var t = new Date();
+    $('updated').textContent = '更新於 ' + t.toTimeString().slice(0, 8) + (res.sync ? '　' + syncText(res.sync) : '');
+    $('updated').classList.toggle('warn', !!(res.sync && (res.sync.lastOk === false || res.sync.pending > 20)));
+    if (res.seq !== undefined) { state.seq = res.seq; state.ver = res.ver; }
+    if (res.unchanged) return;
     var s = res.stats;
     $('board').innerHTML =
       '<div class="stat hero"><div class="k">報到率（僅計成功單）</div><div class="v">' + s.rate + '%</div>' +
@@ -329,8 +355,6 @@ function loadBoard() {
       ab.textContent = s.abnormal > 0 ? '異常單 ' + s.abnormal : '異常單';
       ab.style.display = s.abnormal > 0 ? '' : 'none';
     }
-    var t = new Date();
-    $('updated').textContent = '更新於 ' + t.toTimeString().slice(0, 8);
   });
 }
 
@@ -373,10 +397,12 @@ function renderList() {
       tags += '<span class="tag bad">' + esc(r.payStatus) + '</span>';
     }
 
+    // 舊入口以電話指認學員；暫存站以名單識別碼（id）指認
+    var key = esc(r.id || r.phone);
     var acts = r.checkedIn
-      ? '<button class="danger" data-act="cancel" data-phone="' + esc(r.phone) + '">取消</button>'
-      : '<button data-act="checkin" data-phone="' + esc(r.phone) + '">代為簽到</button>';
-    acts += '<button class="ghost" data-act="note" data-phone="' + esc(r.phone) + '">備註</button>';
+      ? '<button class="danger" data-act="cancel" data-key="' + key + '">取消</button>'
+      : '<button data-act="checkin" data-key="' + key + '">代為簽到</button>';
+    acts += '<button class="ghost" data-act="note" data-key="' + key + '">備註</button>';
 
     return '<div class="row ' + (r.checkedIn ? 'done' : 'todo') + '">' +
       '<div><div class="name">' + esc(r.name) + '</div>' +
@@ -437,6 +463,7 @@ $('op').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogi
 
 $('eventSel').addEventListener('change', function () {
   state.event = this.value;
+  state.seq = null; state.ver = null;
   try { localStorage.setItem('console_event', state.event); } catch (e) {}
   loadAll();
 });
@@ -476,15 +503,16 @@ document.querySelector('.segmented').addEventListener('click', function (e) {
 $('list').addEventListener('click', function (e) {
   var btn = e.target.closest('button[data-act]');
   if (!btn) return;
-  var phone = btn.dataset.phone;
-  var person = state.rows.filter(function (r) { return r.phone === phone; })[0] || {};
+  var key = btn.dataset.key;
+  var person = state.rows.filter(function (r) { return (r.id || r.phone) === key; })[0] || {};
+  var who = { id: person.id || '', phone: person.phone || '' };
 
   if (btn.dataset.act === 'checkin') {
     modal({
       title: '代為簽到', sub: person.name + '（' + (person.headcount || 1) + ' 位）',
       body: '<label>原因或備註（可留空）</label><input data-f="note" placeholder="例如：手機沒電">',
       okText: '確認簽到',
-      onOk: function (v, close) { close(); act('manualCheckIn', { phone: phone, note: v.note }, '已簽到'); }
+      onOk: function (v, close) { close(); act('manualCheckIn', Object.assign({ note: v.note }, who), '已簽到'); }
     });
 
   } else if (btn.dataset.act === 'cancel') {
@@ -492,7 +520,7 @@ $('list').addEventListener('click', function (e) {
       title: '取消簽到', sub: person.name + ' — 原始紀錄會保留並標記作廢',
       body: '<label>取消原因</label><input data-f="note" placeholder="例如：簽錯人">',
       okText: '確認取消',
-      onOk: function (v, close) { close(); act('cancelCheckIn', { phone: phone, note: v.note }, '已取消'); }
+      onOk: function (v, close) { close(); act('cancelCheckIn', Object.assign({ note: v.note }, who), '已取消'); }
     });
 
   } else if (btn.dataset.act === 'note') {
@@ -500,7 +528,7 @@ $('list').addEventListener('click', function (e) {
       title: '加註記', sub: person.name,
       body: '<label>備註內容</label><input data-f="note" value="">',
       okText: '儲存',
-      onOk: function (v, close) { close(); act('setNote', { phone: phone, note: v.note }, '備註已更新'); }
+      onOk: function (v, close) { close(); act('setNote', Object.assign({ note: v.note }, who), '備註已更新'); }
     });
   }
 });

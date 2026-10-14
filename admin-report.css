@@ -46,3 +46,13 @@
 .rp-note { color: #6b6478; }
 
 .rp-foot { margin-top: .8em; color: #6b6478; font-size: .9em; }
+
+/* 管理頁「暫存站」狀態區塊（admin-station.js） */
+.st-panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 0 0 18px; }
+.st-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.st-head h2 { margin: 0; font-size: 19px; }
+.st-mode { color: var(--ink-soft); font-size: 14px; margin-right: auto; }
+.st-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+.st-table th, .st-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.st-table th { color: var(--ink-soft); font-weight: 600; }
+.st-table tr.warn td { color: var(--gold); }

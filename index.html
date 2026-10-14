@@ -198,9 +198,9 @@
   <p class="footer">簽到有問題請洽現場工作人員</p>
 </div>
 
+<script src="backend.js?v=20261014"></script>
 <script>
-// ===== 設定：部署後把這行換成你的 Apps Script /exec 網址 =====
-var API = 'https://script.google.com/macros/s/AKfycbwwoZnAoiftITok6hGpFkKGzaRX4WqshVEbbHL1d_DwRKrmm3LHBDayZfaDtc0aO-In/exec';
+// 後端網址由 backend.js 依 config.json 決定（舊入口或暫存站）
 
 var TIMEOUT_MS = 20000;
 
@@ -274,14 +274,23 @@ function demoApi(payload) {
 
 function callApi(payload, ms) {
   if (DEMO) return demoApi(payload);
-  if (API.indexOf('PASTE_YOUR') === 0) {
-    return Promise.resolve({ status: 'error', message: '尚未設定後端網址<br>請洽工作人員' });
-  }
-  return fetchWithTimeout(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 用 text/plain 避開 CORS 預檢
-    body: JSON.stringify(payload)
-  }, ms).then(function (r) { return r.json(); });
+  // 設定超過一分鐘就重讀，切換後端時不必等瀏覽器快取過期
+  return CheckinBackend.fresh(60000).then(function (config) {
+    var backend = CheckinBackend.pick(config, EVENT);
+    var body = payload;
+    if (backend.kind === 'station' && payload.action === 'checkin') {
+      // 暫存站只收末四碼，或完整號碼的最後六碼：完整號碼不離開學員的手機
+      var digits = String(payload.code).replace(/\D/g, '');
+      if (digits.length === 4) body = { action: 'checkin', event: payload.event, code: digits };
+      else if (digits.length >= 9) body = { action: 'checkin', event: payload.event, code: digits.slice(-6) };
+      else return { status: 'error', message: '請輸入完整的手機號碼' };
+    }
+    return fetchWithTimeout(backend.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 用 text/plain 避開 CORS 預檢
+      body: JSON.stringify(body)
+    }, ms).then(function (r) { return r.json(); });
+  });
 }
 
 if (EVENT) {

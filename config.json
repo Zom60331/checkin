@@ -1,0 +1,6 @@
+{
+  "mode": "google",
+  "stationEvents": [],
+  "google": "https://script.google.com/macros/s/AKfycbwwoZnAoiftITok6hGpFkKGzaRX4WqshVEbbHL1d_DwRKrmm3LHBDayZfaDtc0aO-In/exec",
+  "station": "https://checkin-station.jonathan-lee-8ec.workers.dev/api"
+}
