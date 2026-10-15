@@ -8,7 +8,7 @@
     return DEMO && p.action === 'adminAttendance' ? demoReport(p) : originalApi(p);
   };
 
-  var view = { el: null, ev: null, data: null, show: 'all', sort: 'order', timer: null };
+  var view = { el: null, ev: null, data: null, show: 'all', sort: 'order', timer: null, request: 0 };
 
   function open(ev) {
     close();
@@ -45,6 +45,7 @@
   }
 
   function close() {
+    view.request++;
     if (!view.el) return;
     document.removeEventListener('keydown', onKey);
     window.removeEventListener('resize', onResize);
@@ -61,10 +62,11 @@
 
   function load() {
     var el = view.el;
+    var request = ++view.request;
     sheet().innerHTML = '<div class="rp-state">讀取名單與簽到紀錄中…</div>';
     hint('');
-    fetchReport(view.ev).then(function (res) {
-      if (view.el !== el) return;   // 讀取途中已關閉或換場次
+    fetchReport(view.ev, request).then(function (res) {
+      if (view.el !== el || view.request !== request) return;
       if (res.status === 'needConsolePass') { askConsolePass(res.wrong); return; }
       if (res.status !== 'success') {
         sheet().innerHTML = '<div class="rp-state bad">' + esc(res.message || '讀取失敗') + '</div>';
@@ -81,14 +83,15 @@
         });
       }
     }).catch(function () {
-      if (view.el === el) sheet().innerHTML = '<div class="rp-state bad">連線失敗，請按「重新讀取」</div>';
+      if (view.el === el && view.request === request) sheet().innerHTML = '<div class="rp-state bad">連線失敗，請按「重新讀取」</div>';
     });
   }
 
   // ---------- 取資料 ----------
   // 正式後端若還停在沒有 adminAttendance 的版本，改用控制台既有的 roster／dashboard 組出同一份資料。
   // 那幾個動作驗的是控制台密碼，而且本來就不檢查場次是否啟用。
-  function fetchReport(ev) {
+  function fetchReport(ev, request) {
+    if (!DEMO) return freshGoogleReport(ev, request);
     return api({ action: 'adminAttendance', event: ev.code }).then(function (res) {
       if (!(res.status === 'error' && /^未知的動作/.test(res.message || ''))) return res;
 
@@ -105,6 +108,29 @@
         return r;
       });
     });
+  }
+
+  async function freshGoogleReport(ev, request) {
+    var config = await CheckinBackend.fresh(60000);
+    var id = '', started = Date.now();
+    while (view.el && view.request === request && Date.now() - started < 240000) {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 15000);
+      var res;
+      try {
+        var response = await fetch(config.station, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctrl.signal,
+          body: JSON.stringify({ action: 'adminAttendance', event: ev.code, pass: state.pass, requestId: id })
+        });
+        res = await response.json();
+      } finally { clearTimeout(timer); }
+      if (res.status !== 'pending') return res;
+      id = res.requestId;
+      if (!view.el || view.request !== request) break;
+      sheet().innerHTML = '<div class="rp-state">正在向 Google 讀取正式紀錄…<br>等待下一輪同步處理，通常約一分鐘；已等待 ' + Math.floor((Date.now() - started) / 1000) + ' 秒。</div>';
+      await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+    }
+    return { status: 'error', message: '尚未收到報表。請確認同步狀態，再按「重新讀取」。' };
   }
 
   function savedConsolePass() {

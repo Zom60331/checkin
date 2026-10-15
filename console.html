@@ -188,6 +188,7 @@
 var POLL_MS = 15000; // 看板自動更新間隔
 
 var state = { pass: '', operator: '', event: '', filter: 'all', keyword: '', rows: [], timer: null, backend: '', seq: null, ver: null };
+var listCache = null, listRequest = 0;
 var $ = function (id) { return document.getElementById(id); };
 
 function esc(s) {
@@ -339,7 +340,7 @@ function loadBoard() {
     $('updated').textContent = '更新於 ' + t.toTimeString().slice(0, 8) + (res.sync ? '　' + syncText(res.sync) : '');
     $('updated').classList.toggle('warn', !!(res.sync && (res.sync.lastOk === false || res.sync.pending > 20)));
     if (res.seq !== undefined) { state.seq = res.seq; state.ver = res.ver; }
-    if (res.unchanged) return;
+    if (res.unchanged) return false;
     var s = res.stats;
     $('board').innerHTML =
       '<div class="stat hero"><div class="k">報到率（僅計成功單）</div><div class="v">' + s.rate + '%</div>' +
@@ -355,20 +356,44 @@ function loadBoard() {
       ab.textContent = s.abnormal > 0 ? '異常單 ' + s.abnormal : '異常單';
       ab.style.display = s.abnormal > 0 ? '' : 'none';
     }
+    return true;
   });
 }
 
-function loadList() {
-  return api({ action: 'roster', event: state.event, filter: state.filter, keyword: state.keyword })
-    .then(function (res) {
-      if (res.status !== 'success') { $('list').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
-      state.rows = res.rows || [];
-      renderList();
-    });
+function filterList() {
+  if (!listCache || listCache.event !== state.event) return false;
+  var rows = state.filter === 'abnormal' ? listCache.abnormal : listCache.paid;
+  var kw = state.keyword.trim().toLowerCase(), digits = kw.replace(/\D/g, '');
+  state.rows = rows.filter(function (r) {
+    if (state.filter === 'checked' && !r.checkedIn) return false;
+    if (state.filter === 'unchecked' && r.checkedIn) return false;
+    return !kw || String(r.name).toLowerCase().includes(kw) || String(r.orderId).toLowerCase().includes(kw) ||
+      (digits.length >= 3 && (r.phone ? String(r.phone).includes(digits) : r.tail && (digits.length >= 4 ? r.tail === digits.slice(-4) : r.tail.includes(digits))));
+  });
+  renderList();
+  return true;
+}
+
+function loadList(force) {
+  if (!force && filterList()) return Promise.resolve();
+  var event = state.event, request = ++listRequest;
+  return Promise.all(['all', 'abnormal'].map(function (filter) {
+    return api({ action: 'roster', event: event, filter: filter, keyword: '', complete: true });
+  })).then(function (results) {
+    if (event !== state.event || request !== listRequest) return;
+    var error = results.find(function (r) { return r.status !== 'success'; });
+    if (error || results.some(function (r) { return r.total > (r.rows || []).length; })) {
+      listCache = null; state.rows = [];
+      $('list').innerHTML = '<div class="empty">' + esc(error ? error.message : '後端只回傳部分名單，無法完整篩選；請改用新版控制台或洽維護者。') + '</div>';
+      return;
+    }
+    listCache = { event: event, paid: results[0].rows || [], abnormal: results[1].rows || [] };
+    filterList();
+  });
 }
 
 function loadAll() {
-  return Promise.all([loadBoard(), loadList()]).catch(function () {
+  return Promise.all([loadBoard(), loadList(true)]).catch(function () {
     toast('連線失敗，請按重新整理', 'bad');
   });
 }
@@ -417,7 +442,9 @@ function renderList() {
 function startPolling() {
   if (state.timer) clearInterval(state.timer);
   state.timer = setInterval(function () {
-    if (!document.hidden) loadBoard();
+    if (!document.hidden) loadBoard().then(function (changed) {
+      if (changed !== false && state.backend === 'station') return loadList(true);
+    }).catch(function () { toast('背景更新失敗，請按更新報到狀況', 'bad'); });
   }, POLL_MS);
 }
 
@@ -462,6 +489,7 @@ $('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('op'
 $('op').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
 
 $('eventSel').addEventListener('change', function () {
+  listCache = null; listRequest++;
   state.event = this.value;
   state.seq = null; state.ver = null;
   try { localStorage.setItem('console_event', state.event); } catch (e) {}
@@ -481,6 +509,7 @@ $('reloadBtn').addEventListener('click', function () {
 });
 
 $('logoutBtn').addEventListener('click', function () {
+  listCache = null; state.rows = []; listRequest++;
   try { localStorage.removeItem('console_pass'); } catch (e) {}
   location.reload();
 });
@@ -488,7 +517,7 @@ $('logoutBtn').addEventListener('click', function () {
 $('search').addEventListener('input', function () {
   clearTimeout(state.searchTimer);
   var v = this.value;
-  state.searchTimer = setTimeout(function () { state.keyword = v; loadList(); }, 350);
+  state.keyword = v; loadList();
 });
 
 document.querySelector('.segmented').addEventListener('click', function (e) {

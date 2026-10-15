@@ -1,6 +1,34 @@
 (function () {
   'use strict';
   var sources = [], activeDialog = null, connected = false, pendingPayload = null;
+  var eventCheck = 0;
+
+  async function confirmEventState(event) {
+    var check = ++eventCheck;
+    if (DEMO) { message('示範：場次設定已儲存。'); return; }
+    var config = await CheckinBackend.fresh(0);
+    if (CheckinBackend.pick(config, event.code).kind !== 'station') {
+      message('場次設定已儲存，目前使用舊入口。'); return;
+    }
+    message('設定已儲存，等待同步' + (event.enabled ? '開放簽到…' : '停止簽到…'));
+    var start = Date.now();
+    while (check === eventCheck && Date.now() - start < 240000) {
+      var ctrl = new AbortController(), timer = setTimeout(function () { ctrl.abort(); }, 10000);
+      var result;
+      try {
+        result = await fetch(config.station, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctrl.signal,
+          body: JSON.stringify({ action: 'eventInfo', event: event.code }) }).then(function (r) { return r.json(); });
+      } catch (_) { result = null; } finally { clearTimeout(timer); }
+      if (check !== eventCheck) return;
+      if (result && ((event.enabled && result.status === 'success' && result.enabled === true) ||
+          (!event.enabled && result.enabled === false && /已結束|尚未開放/.test(result.message || '')))) {
+        message(event.enabled ? '已確認：暫存站已開放簽到。' : '已確認：暫存站已停止簽到，紀錄核對與清除會繼續進行。');
+        return;
+      }
+      await new Promise(function (resolve) { setTimeout(resolve, 5000); });
+    }
+    if (check === eventCheck) message('設定已儲存，但尚未確認生效，請查看同步狀態；不要重複儲存。', true);
+  }
   var PENDING = 'cms-operation-v1' + (DEMO ? '-demo' : '');
   var uid = function () { return crypto.randomUUID(); };
   var demoState = { sources: [], events: [], rows: {} };
@@ -174,7 +202,14 @@
       if (!event.name || !event.date || !/^[A-Za-z0-9_-]+$/.test(event.code) || (!originalCode && !event.sourceId)) { status(d, '請填寫名單來源、名稱、日期與有效場次代碼。', true); return; }
       if (originalCode && event.sourceId !== (ev.sourceId || '') && !field('cmsChangeSource').checked) { status(d, '請先確認更換名單來源。', true); return; }
       busy(d, true); status(d, '正在儲存場次…');
-      try { await call({ action: 'adminEventSave', requestId: requestId, originalCode: originalCode, baseToken: ev.editToken, confirmSourceChange: field('cmsChangeSource').checked, event: event }); await loadEvents(); d.remove(); activeDialog = null; message(event.enabled ? '場次已開放簽到，可以下載 QR。' : '已儲存草稿。檢查名單與預覽後，再編輯場次開放簽到。'); }
+      try {
+        var saved = await call({ action: 'adminEventSave', requestId: requestId, originalCode: originalCode, baseToken: ev.editToken, confirmSourceChange: field('cmsChangeSource').checked, event: event });
+        var updated = Object.assign({}, ev, event, saved.event || {}, { editToken: saved.token });
+        var events = state.events.filter(function (e) { return e.code !== updated.code; }).concat([updated]);
+        showEvents({ events: events.slice().reverse(), masterUrl: $('masterLink').href });
+        d.remove(); activeDialog = null;
+        confirmEventState(updated).catch(function () { message('設定已儲存，尚無法確認同步狀態，請查看暫存站狀態。', true); });
+      }
       catch (e) { status(d, e.message + '。可按原按鈕重試。', true); }
       finally { busy(d, false); }
     };

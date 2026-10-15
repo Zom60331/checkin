@@ -358,6 +358,12 @@ function submitCheckIn() {
         // 捲到結果，避免結果落在螢幕外讓人以為沒反應
         resultBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
+      } else if (res.status === 'already') {
+        show('<p class="msg success">✓ 已完成簽到</p><div class="detail">原簽到時間：' + escapeHtml(res.time) + '</div>');
+        codeInput.value = '';
+        codeInput.blur();
+        resetPrompt();
+        resultBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (res.status === 'collision') {
         // 末四碼撞號：切換成要求輸入完整號碼
         show('<p class="msg fail">' + escapeHtml(res.message) + '</p>');
