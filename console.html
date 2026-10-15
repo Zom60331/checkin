@@ -363,6 +363,12 @@ function loadBoard() {
   });
 }
 
+// 舊入口可能回傳含時區的 Date 字串；不能直接截最後八個字。
+function displayCheckInTime(value) {
+  var match = String(value || '').match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+  return match ? match[1].padStart(8, '0') : '時間待確認';
+}
+
 function filterList() {
   if (!listCache || listCache.event !== state.event) return false;
   var rows = state.filter === 'abnormal' ? listCache.abnormal : listCache.paid;
@@ -420,7 +426,7 @@ function renderList() {
   $('list').innerHTML = state.rows.map(function (r) {
     var tags = '';
     if (r.checkedIn) {
-      tags += '<span class="tag ok">已報到 ' + esc(r.checkInTime.slice(-8)) + '</span>';
+      tags += '<span class="tag ok">已報到 ' + esc(displayCheckInTime(r.checkInTime)) + '</span>';
       if (r.method && r.method !== '自助') tags += '<span class="tag">' + esc(r.method) + '</span>';
     } else {
       tags += '<span class="tag warn">未報到</span>';
