@@ -63,6 +63,7 @@
   function load() {
     var el = view.el;
     var request = ++view.request;
+    view.data = null;
     sheet().innerHTML = '<div class="rp-state">讀取名單與簽到紀錄中…</div>';
     hint('');
     fetchReport(view.ev, request).then(function (res) {
@@ -88,8 +89,7 @@
   }
 
   // ---------- 取資料 ----------
-  // 正式後端若還停在沒有 adminAttendance 的版本，改用控制台既有的 roster／dashboard 組出同一份資料。
-  // 那幾個動作驗的是控制台密碼，而且本來就不檢查場次是否啟用。
+  // 正式環境一律由 Google 產生報表，再經管理員專用中繼取回；舊版相容分支僅保留於示範模式。
   function fetchReport(ev, request) {
     if (!DEMO) return freshGoogleReport(ev, request);
     return api({ action: 'adminAttendance', event: ev.code }).then(function (res) {
