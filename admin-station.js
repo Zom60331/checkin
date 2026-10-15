@@ -49,7 +49,7 @@
       var uses = config.mode === 'station' || config.stationEvents.length > 0;
       panel.classList.toggle('hidden', !uses);
       panel.querySelector('.st-mode').textContent = config.mode === 'station' ? '全部場次使用中'
-        : '僅彩排場次：' + config.stationEvents.join('、');
+        : '使用暫存站的場次：' + config.stationEvents.join('、');
       if (!uses) return null;
       if (!consolePass()) {
         panel.querySelector('.st-body').innerHTML = '<p class="cms-muted">需要控制台密碼才能查看：請先在這台瀏覽器登入一次控制台。</p>';
