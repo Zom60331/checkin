@@ -332,9 +332,12 @@ function syncText(sync) {
   return '暫存站｜' + parts.join('｜');
 }
 
+var boardRequest = 0;
 function loadBoard() {
+  var event = state.event, request = ++boardRequest;
   // 暫存站：帶上次的序號，沒有新動作就不重算（舊入口會忽略這兩個參數）
-  return api({ action: 'dashboard', event: state.event, since: state.seq, ver: state.ver }).then(function (res) {
+  return api({ action: 'dashboard', event: event, since: state.seq, ver: state.ver }).then(function (res) {
+    if (event !== state.event || request !== boardRequest) return false;
     if (res.status !== 'success') { $('board').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
     var t = new Date();
     $('updated').textContent = '更新於 ' + t.toTimeString().slice(0, 8) + (res.sync ? '　' + syncText(res.sync) : '');
@@ -389,6 +392,11 @@ function loadList(force) {
     }
     listCache = { event: event, paid: results[0].rows || [], abnormal: results[1].rows || [] };
     filterList();
+  }).catch(function (error) {
+    if (event !== state.event || request !== listRequest) return;
+    listCache = null; state.rows = [];
+    $('list').innerHTML = '<div class="empty">名單更新失敗，正在等待重試；也可按更新報到狀況。</div>';
+    throw error;
   });
 }
 
@@ -443,7 +451,7 @@ function startPolling() {
   if (state.timer) clearInterval(state.timer);
   state.timer = setInterval(function () {
     if (!document.hidden) loadBoard().then(function (changed) {
-      if (changed !== false && state.backend === 'station') return loadList(true);
+      if (state.backend === 'station' && (changed !== false || !listCache || listCache.event !== state.event)) return loadList(true);
     }).catch(function () { toast('背景更新失敗，請按更新報到狀況', 'bad'); });
   }, POLL_MS);
 }
