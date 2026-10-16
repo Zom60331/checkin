@@ -171,7 +171,7 @@ function demoApi(payload) {
   var data = {
     adminEvents: { status: 'success', masterUrl: 'https://docs.google.com/spreadsheets/d/demo/edit', events: [
       { code: '20261015-kd', name: '新手實戰班 · 台北場', date: '2026/10/15', enabled: true, sheetId: 'demo1', sheetName: '名單總表', logSheetId: '', duplicate: false },
-      { code: '20261020-online', name: '新手實戰班 · 線上場', date: '2026/10/20', enabled: false, sheetId: 'demo2', sheetName: '名單總表', logSheetId: 'demo3', duplicate: false },
+      { code: '20261020-online', name: '新手實戰班 · 線上場', date: '2026-10-20', enabled: false, sheetId: 'demo2', sheetName: '名單總表', logSheetId: 'demo3', duplicate: false },
       { code: '範例-請改', name: '範例場次', date: '2026/08/17', enabled: false, sheetId: '貼上名單試算表ID', sheetName: '名單總表', logSheetId: '', duplicate: false }
     ]},
     adminCheck: {
@@ -187,9 +187,9 @@ function demoApi(payload) {
         { level: 'info', text: '3 組末四碼相同：這些學員輸入末四碼後，會被要求改輸入完整號碼（正常流程）' },
         { level: 'ok', text: '簽到紀錄寫進主控表，第一位簽到時自動建立分頁' }
       ]},
-      '20261020-online': { status: 'success', errors: 0, warnings: 1, items: [
+      '20261020-online': { status: 'success', errors: 0, warnings: 2, items: [
         { level: 'warn', text: '未啟用：學員簽到會被擋，控制台也看不到這場' },
-        { level: 'ok', text: '活動日期 2026/10/20（18 天後）' },
+        { level: 'warn', text: '活動日期不是日期格式：「2026-10-20」' },
         { level: 'ok', text: '名單：「1020 線上場名單」／分頁「名單總表」' },
         { level: 'ok', text: '共 56 筆：成功單 56 筆（應到 56 人）、異常單 0 筆' },
         { level: 'ok', text: '簽到紀錄寫進「王老師 簽到紀錄」，第一位簽到時自動建立分頁' }
@@ -264,12 +264,18 @@ function loadEvents() {
 }
 
 // ---------- 場次列表 ----------
+// 啟用中的場次排最前面，其餘維持原本的先後
+function enabledFirst(events) {
+  return events.filter(function (ev) { return ev.enabled; })
+    .concat(events.filter(function (ev) { return !ev.enabled; }));
+}
+
 function showEvents(res) {
   if (res.masterUrl) $('masterLink').href = res.masterUrl;
   $('masterLink').classList.toggle('hidden', !res.masterUrl);
 
-  // 主控表越下面的列通常越新，反過來排讓新場次在最上面
-  state.events = (res.events || []).slice().reverse();
+  // 主控表越下面的列通常越新，反過來排讓新場次在最上面；啟用中的再提到最前面
+  state.events = enabledFirst((res.events || []).slice().reverse());
   if (state.events.length === 0) {
     $('list').innerHTML = '<div class="empty">主控表「場次」分頁還沒有任何場次</div>';
     return;
@@ -295,6 +301,46 @@ function showEvents(res) {
 
 var LEVEL_ICON = { ok: '✅', info: 'ℹ️', warn: '⚠️', error: '❌' };
 
+/**
+ * 檢查在舊入口（版本 10，無法再更新）執行，有兩條已知誤報，在畫面上更正：
+ * 1. 日期：建立場次只收「2026-10-18」，檢查卻只認「2026/10/18」。
+ * 2. 重複電話：把退款、失敗單也算進去；走暫存站的場次只讓有效訂單自助簽到，舊入口的場次則照原說法。
+ * today 是 [年, 月, 日]。
+ */
+function adjustCheck(res, usesStation, today) {
+  var fixed = 0;
+  res.items = (res.items || []).map(function (it) {
+    var m = it.level === 'warn' && /^活動日期不是日期格式：「(\d{4})-(\d{2})-(\d{2})」$/.exec(it.text);
+    if (m) {
+      var t = Date.UTC(+m[1], +m[2] - 1, +m[3]), d = new Date(t);
+      if (d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3]) {
+        var date = m[1] + '/' + m[2] + '/' + m[3];
+        var days = Math.round((t - Date.UTC(today[0], today[1] - 1, today[2])) / 86400000);
+        if (days < 0) return { level: 'warn', text: '活動日期 ' + date + ' 已過（' + (-days) + ' 天前）' };
+        fixed++;
+        return { level: 'ok', text: '活動日期 ' + date + (days === 0 ? '：就是今天' : '（' + days + ' 天後）') };
+      }
+    }
+    var dup = usesStation && it.level === 'warn' &&
+      /^(\d+) 支電話重複出現（可能是重複報名）。自助簽到會卡住，同一支電話也只能簽到一次，需工作人員處理：(.*)$/.exec(it.text);
+    if (dup) {
+      fixed++;
+      return { level: 'info', text: dup[1] + ' 支電話出現在多筆訂單（這項檢查把退款、失敗單也算進去）。' +
+        '暫存站只讓其中有效的訂單自助簽到；同一支電話有兩筆以上有效訂單，才會請學員到櫃檯：' + dup[2] };
+    }
+    return it;
+  });
+  res.warnings = Math.max(0, (res.warnings || 0) - fixed);
+  return res;
+}
+
+function usesStation(code) {
+  if (typeof CheckinBackend === 'undefined') return Promise.resolve(false);
+  return CheckinBackend.fresh(60000).then(function (config) {
+    return CheckinBackend.pick(config, code).kind === 'station';
+  }, function () { return false; });
+}
+
 function runCheck(card, ev) {
   var box = card.querySelector('.check');
   var btn = card.querySelector('[data-act="check"]');
@@ -302,13 +348,16 @@ function runCheck(card, ev) {
   box.innerHTML = '<div class="verdict">檢查中…</div>';
   btn.disabled = true;
 
-  api({ action: 'adminCheck', event: ev.code }).then(function (res) {
+  Promise.all([api({ action: 'adminCheck', event: ev.code }), usesStation(ev.code)]).then(function (out) {
+    var res = out[0];
     btn.disabled = false;
     btn.textContent = '重新檢查';
     if (res.status !== 'success') {
       box.innerHTML = '<div class="verdict bad">' + esc(res.message || '檢查失敗') + '</div>';
       return;
     }
+    var now = new Date();
+    adjustCheck(res, out[1], [now.getFullYear(), now.getMonth() + 1, now.getDate()]);
     var verdict = res.errors > 0
       ? '<div class="verdict bad">有 ' + res.errors + ' 個問題要先修，這場現在無法正常簽到</div>'
       : res.warnings > 0

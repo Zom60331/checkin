@@ -296,18 +296,26 @@ function doLogin() {
     });
 }
 
+function eventOptions(events) {
+  return events.map(function (ev) {
+    return '<option value="' + esc(ev.code) + '">' + esc(ev.name || ev.code) + (ev.date ? '（' + esc(ev.date) + '）' : '') +
+      (ev.closing ? '［已關閉簽到］' : '') + '</option>';
+  }).join('');
+}
+
+var NO_EVENT = '<div class="empty">目前沒有開放中的場次。管理頁開放簽到後，約一分鐘內會自動出現，不必重新整理。</div>';
+
 function enterMain(events) {
   $('loginBox').classList.add('hidden');
   $('main').classList.remove('hidden');
 
+  state.events = events;
   var sel = $('eventSel');
-  sel.innerHTML = events.map(function (ev) {
-    return '<option value="' + esc(ev.code) + '">' + esc(ev.name || ev.code) + (ev.date ? '（' + esc(ev.date) + '）' : '') +
-      (ev.closing ? '［已關閉簽到］' : '') + '</option>';
-  }).join('');
+  sel.innerHTML = eventOptions(events);
+  watchEvents();
 
   if (events.length === 0) {
-    $('board').innerHTML = '<div class="empty">場次登錄表裡沒有啟用中的場次</div>';
+    $('board').innerHTML = NO_EVENT;
     return;
   }
 
@@ -315,6 +323,57 @@ function enterMain(events) {
   try { saved = localStorage.getItem('console_event'); } catch (e) {}
   if (saved && events.some(function (ev) { return ev.code === saved; })) sel.value = saved;
 
+  state.event = sel.value;
+  loadAll();
+  startPolling();
+}
+
+// 場次清單只在登入時讀一次的話，開著的控制台看不到之後才開放的場次；背景定時重讀
+var EVENTS_POLL_MS = 30000;
+
+function watchEvents() {
+  if (state.eventsTimer) return;
+  state.eventsTimer = setInterval(function () {
+    if (!document.hidden) refreshEvents().catch(function () {});
+  }, EVENTS_POLL_MS);
+}
+
+function refreshEvents() {
+  return api({ action: 'login' }).then(function (res) {
+    if (res && res.status === 'success') updateEvents(res.events || []);
+  });
+}
+
+function eventsKey(events) {
+  return JSON.stringify(events.map(function (ev) { return [ev.code, ev.name, ev.date, !!ev.closing]; }));
+}
+
+function updateEvents(events) {
+  var before = state.events || [];
+  if (eventsKey(before) === eventsKey(events)) return;
+  var known = {};
+  before.forEach(function (ev) { known[ev.code] = true; });
+  var added = events.filter(function (ev) { return !known[ev.code]; });
+  state.events = events;
+  var sel = $('eventSel');
+  sel.innerHTML = eventOptions(events);
+  if (added.length) toast('新開放：' + added.map(function (ev) { return ev.name || ev.code; }).join('、'), 'ok');
+
+  if (events.some(function (ev) { return ev.code === state.event; })) { sel.value = state.event; return; }
+
+  // 原本沒有場次，或正在看的那場已結束清除：改看記住的那場或第一場
+  listCache = null; listRequest++;
+  state.seq = null; state.ver = null;
+  if (events.length === 0) {
+    state.event = '';
+    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    $('board').innerHTML = NO_EVENT;
+    $('list').innerHTML = '';
+    return;
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('console_event'); } catch (e) {}
+  sel.value = saved && events.some(function (ev) { return ev.code === saved; }) ? saved : events[0].code;
   state.event = sel.value;
   loadAll();
   startPolling();
