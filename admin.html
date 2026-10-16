@@ -264,18 +264,24 @@ function loadEvents() {
 }
 
 // ---------- 場次列表 ----------
-// 啟用中的場次排最前面，其餘維持原本的先後
-function enabledFirst(events) {
-  return events.filter(function (ev) { return ev.enabled; })
-    .concat(events.filter(function (ev) { return !ev.enabled; }));
+// 啟用中的場次排最前面；兩組內各依活動日期由新到舊，日期相同或讀不出日期的維持原本先後（讀不出的排在該組最後）
+function dateKey(date) {
+  var m = /^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/.exec(String(date || '').trim());
+  return m ? +m[1] * 10000 + +m[2] * 100 + +m[3] : -1;
+}
+
+function sortEvents(events) {
+  return events.map(function (ev, i) { return { ev: ev, i: i, on: ev.enabled ? 1 : 0, d: dateKey(ev.date) }; })
+    .sort(function (a, b) { return (b.on - a.on) || (b.d - a.d) || (a.i - b.i); })
+    .map(function (x) { return x.ev; });
 }
 
 function showEvents(res) {
   if (res.masterUrl) $('masterLink').href = res.masterUrl;
   $('masterLink').classList.toggle('hidden', !res.masterUrl);
 
-  // 主控表越下面的列通常越新，反過來排讓新場次在最上面；啟用中的再提到最前面
-  state.events = enabledFirst((res.events || []).slice().reverse());
+  // 主控表越下面的列通常越新，先反過來當作同日期時的先後，再依啟用與日期排序
+  state.events = sortEvents((res.events || []).slice().reverse());
   if (state.events.length === 0) {
     $('list').innerHTML = '<div class="empty">主控表「場次」分頁還沒有任何場次</div>';
     return;
